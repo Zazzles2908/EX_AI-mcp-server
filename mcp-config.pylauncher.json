@@ -1,0 +1,23 @@
+{
+    "mcpServers":  {
+                       "exai":  {
+                                    "args":  [
+                                                 "-3",
+                                                 "-u",
+                                                 "scripts/mcp_server_wrapper.py"
+                                             ],
+                                    "cwd":  "C:/Project/EX-AI-MCP-Server",
+                                    "command":  "py",
+                                    "type":  "stdio",
+                                    "trust":  true,
+                                    "env":  {
+                                                "MCP_SERVER_NAME":  "exai",
+                                                "PYTHONPATH":  "C:/Project/EX-AI-MCP-Server",
+                                                "MCP_SERVER_ID":  "exai-server",
+                                                "ENV_FILE":  "C:/Project/EX-AI-MCP-Server/.env",
+                                                "ALLOW_AUGGIE":  "true",
+                                                "AUGGIE_CLI":  "true"
+                                            }
+                                }
+                   }
+}

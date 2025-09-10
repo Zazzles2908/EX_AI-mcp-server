@@ -1,0 +1,27 @@
+version: "3.9"
+services:
+  ex-mcp:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.remote
+    environment:
+      MCP_REMOTE_HOST: 0.0.0.0
+      MCP_REMOTE_PORT: 7800
+      MCP_BASE_PATH: /mcp
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN}
+      KIMI_API_KEY: ${KIMI_API_KEY}
+      GLM_API_KEY: ${GLM_API_KEY}
+    expose:
+      - "7800"
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - ex-mcp
+    ports:
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    environment:
+      MCP_UPSTREAM: ex-mcp:7800
+

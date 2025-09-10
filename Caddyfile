@@ -1,0 +1,28 @@
+{
+  email you@example.com
+  # Optional: debug
+  # debug
+}
+
+# Replace example.com with your domain
+example.com {
+  encode gzip
+
+  @mcp {
+    path /mcp*
+    path /sse*
+    path /v1/sse*
+  }
+
+  reverse_proxy @mcp ex-mcp:7800 {
+    header_up Authorization {>Authorization}
+    header_up X-Forwarded-Proto {scheme}
+    header_up X-Forwarded-For {remote}
+    header_up Host {host}
+  }
+
+  handle /healthz {
+    reverse_proxy ex-mcp:7800
+  }
+}
+

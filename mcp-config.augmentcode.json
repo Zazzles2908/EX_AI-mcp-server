@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "EXAI": {
+      "type": "stdio",
+      "trust": true,
+      "command": "C:/Project/EX-AI-MCP-Server/.venv/Scripts/python.exe",
+      "args": ["-u", "C:/Project/EX-AI-MCP-Server/scripts/mcp_server_wrapper.py"],
+      "cwd": "C:/Project/EX-AI-MCP-Server",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONPATH": "C:/Project/EX-AI-MCP-Server",
+        "ENV_FILE": "C:/Project/EX-AI-MCP-Server/.env",
+        "MCP_SERVER_NAME": "exai",
+        "MCP_SERVER_ID": "exai-server",
+        "LOG_LEVEL": "INFO",
+        "EXAI_LOCK_DISABLE": "true"
+      }
+    },
+    "EXAI-WS": {
+      "type": "stdio",
+      "trust": true,
+      "command": "C:/Project/EX-AI-MCP-Server/.venv/Scripts/python.exe",
+      "args": ["-u", "C:/Project/EX-AI-MCP-Server/scripts/run_ws_shim.py"],
+      "cwd": "C:/Project/EX-AI-MCP-Server",
+      "env": {
+        "ENV_FILE": "C:/Project/EX-AI-MCP-Server/.env",
+        "EXAI_SHIM_RPC_TIMEOUT": "30",
+        "LOG_LEVEL": "DEBUG",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}

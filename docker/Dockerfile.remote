@@ -1,0 +1,46 @@
+# Zen MCP Server - Remote (network) deployment
+# Build minimal image suitable for Railway/Render/Heroku-like platforms
+
+FROM python:3.12-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# System deps (if needed)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy project files
+COPY pyproject.toml README.md LICENSE /app/
+COPY server.py remote_server.py /app/
+COPY tools /app/tools
+COPY providers /app/providers
+COPY utils /app/utils
+COPY conf /app/conf
+COPY docs /app/docs
+
+# Install package + remote extras
+RUN pip install --upgrade pip && \
+    pip install ".[remote]"
+
+# Env defaults
+ENV LOG_LEVEL=INFO \
+    MCP_REMOTE_HOST=0.0.0.0 \
+    MCP_REMOTE_PORT=7800 \
+    MCP_BASE_PATH=/mcp
+
+# Expose port for HTTP/SSE/WebSocket
+EXPOSE 7800
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl -fsS http://127.0.0.1:${MCP_REMOTE_PORT}/healthz || exit 1
+
+# Start remote server
+CMD ["python", "-m", "uvicorn", "remote_server:app", "--host", "0.0.0.0", "--port", "7800"]
+
