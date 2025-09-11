@@ -1,0 +1,4 @@
+{
+  "status": "error",
+  "error": "1 validation error for ConsensusRequest\nfindings\n  Field required [type=missing, input_value={'step': 'Continue consen...'continuation_id': None}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing"
+}

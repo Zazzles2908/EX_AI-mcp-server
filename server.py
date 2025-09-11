@@ -1162,7 +1162,12 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                 req = (requested or "").strip().lower()
                 if req and req != "auto":
                     return requested  # explicit model respected
-                simple_tools = {"chat","status","provider_capabilities","listmodels","activity","version","kimi_chat_with_tools","kimi_upload_and_extract"}
+                # Route Kimi-specific tools to Kimi by default
+                kimi_tools = {"kimi_chat_with_tools", "kimi_upload_and_extract"}
+                if tool_name in kimi_tools:
+                    return os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
+
+                simple_tools = {"chat","status","provider_capabilities","listmodels","activity","version"}
                 if tool_name in simple_tools:
                     return os.getenv("GLM_FLASH_MODEL", "glm-4.5-flash")
 
@@ -1208,6 +1213,11 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         requested_model = arguments.get("model") or DEFAULT_MODEL
         routed_model = _route_auto_model(name, requested_model, arguments)
         model_name = routed_model or requested_model
+        # Propagate routed model to arguments so downstream logic treats it as explicit
+        try:
+            arguments["model"] = model_name
+        except Exception:
+            pass
         # Single-line boundary log for routing/fallback reasons
         try:
             reason = "explicit" if (requested_model and str(requested_model).lower() != "auto") else (
@@ -1242,14 +1252,20 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         try:
             if THINK_ROUTING_ENABLED and name == "thinkdeep":
                 explicit_model = "model" in arguments and str(arguments.get("model") or "").strip().lower() not in {"", "auto"}
-                if not explicit_model:
-                    # Use RouterService to resolve thinkdeep model (auto/sentinel)
-                    from src.router.service import RouterService
+                override_explicit = _os.getenv("THINKDEEP_OVERRIDE_EXPLICIT", "true").strip().lower() == "true"
+                want_expert = bool(arguments.get("use_assistant_model", False))
+                if (not explicit_model) or (override_explicit and want_expert):
+                    # Choose fast expert model for thinkdeep to avoid long waits/timeouts (or Kimi thinking if disabled)
                     requested_input = arguments.get("model")
-                    routed = RouterService().choose_model(requested_input)
-                    model_name = routed.chosen
+                    fast = (_os.getenv("THINKDEEP_FAST_EXPERT", "true").strip().lower() == "true")
+                    if fast:
+                        model_name = _os.getenv("GLM_FLASH_MODEL", "glm-4.5-flash")
+                        reason = "forced_glm_flash_fast"
+                    else:
+                        model_name = _os.getenv("KIMI_THINKING_MODEL", "kimi-thinking-preview")
+                        reason = "forced_kimi_thinking"
                     arguments["model"] = model_name
-                    logger.info(f"THINKING MODEL (router): requested='{requested_input}' chosen='{model_name}' reason='{routed.reason}'")
+                    logger.info(f"THINKING MODEL (router): requested='{requested_input}' chosen='{model_name}' reason='{reason}'")
         except Exception as _e:
             logger.debug(f"[THINKING] model selection skipped/failed: {_e}")
 
@@ -1263,8 +1279,29 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             try:
                 return await tool.execute(arguments)
             except Exception as e:
-                logger.error("Tool %s execution failed (no-model path): %s", name, e, exc_info=True)
-                raise
+                # Graceful error normalization for invalid arguments and runtime errors
+                try:
+                    from pydantic import ValidationError as _ValidationError
+                except Exception:
+                    _ValidationError = None  # type: ignore
+                from mcp.types import TextContent as _TextContent
+                import json as _json
+                if _ValidationError and isinstance(e, _ValidationError):
+                    err = {
+                        "status": "invalid_request",
+                        "error": "Invalid arguments for tool",
+                        "details": str(e),
+                        "tool": name,
+                    }
+                    logger.warning("Tool %s argument validation failed: %s", name, e)
+                    return [_TextContent(type="text", text=_json.dumps(err))]
+                logger.error("Tool %s execution failed: %s", name, e, exc_info=True)
+                err = {
+                    "status": "execution_error",
+                    "error": str(e),
+                    "tool": name,
+                }
+                return [_TextContent(type="text", text=_json.dumps(err))]
 
         # Auto model selection helper
         def _has_cjk(text: str) -> bool:

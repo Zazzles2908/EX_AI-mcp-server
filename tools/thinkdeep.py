@@ -218,6 +218,28 @@ class ThinkDeepTool(WorkflowTool):
     def get_default_thinking_mode(self) -> str:
         """Return default thinking mode for thinkdeep"""
         from config import DEFAULT_THINKING_MODE_THINKDEEP
+        return DEFAULT_THINKING_MODE_THINKDEEP
+    # Override expert analysis timing to avoid wrapper timeouts
+    def get_expert_timeout_secs(self, request=None) -> float:
+        """Cap thinkdeep expert analysis to a shorter window so callers never hang.
+        Uses THINKDEEP_EXPERT_TIMEOUT_SECS if set, else default 25s.
+        """
+        import os
+        try:
+            return float(os.getenv("THINKDEEP_EXPERT_TIMEOUT_SECS", "25"))
+        except Exception:
+            return 25.0
+
+    def get_expert_heartbeat_interval_secs(self, request=None) -> float:
+        """Emit progress frequently enough to satisfy 10s idle clients.
+        Uses THINKDEEP_HEARTBEAT_INTERVAL_SECS if set, else default 7s.
+        """
+        import os
+        try:
+            return float(os.getenv("THINKDEEP_HEARTBEAT_INTERVAL_SECS", "7"))
+        except Exception:
+            return 7.0
+
 
         return DEFAULT_THINKING_MODE_THINKDEEP
 
@@ -399,6 +421,63 @@ but also acknowledge strong insights and valid conclusions.
         except AttributeError:
             pass
         return super().get_request_use_websearch(request)
+    def get_request_use_assistant_model(self, request) -> bool:
+        """Smart default for whether to call external expert analysis.
+
+        Priority order:
+        1) Respect explicit request.use_assistant_model when provided
+        2) Env override THINKDEEP_USE_ASSISTANT_MODEL_DEFAULT=true/false
+        3) Heuristic auto-mode:
+           - If next_step_required is False AND any of these are true, return True:
+             • confidence in {"high","very_high","almost_certain"}
+             • >= 2 findings or any relevant_files present
+             • step_number >= total_steps (final step) and findings length >= 200 chars
+           - Otherwise False
+        """
+        # 1) Explicit request flag wins
+        try:
+            val = getattr(request, "use_assistant_model", None)
+        except AttributeError:
+            val = None
+        if val is not None:
+            return bool(val)
+
+        # 2) Env override
+        import os
+        env_default = os.getenv("THINKDEEP_USE_ASSISTANT_MODEL_DEFAULT")
+        if env_default is not None:
+            return env_default.strip().lower() == "true"
+
+        # 3) Heuristic auto-mode
+        try:
+            final_step = bool(not request.next_step_required)
+        except Exception:
+            final_step = False
+        try:
+            conf = (request.confidence or "").lower()
+        except Exception:
+            conf = ""
+        try:
+            findings_text = request.findings or ""
+        except Exception:
+            findings_text = ""
+        try:
+            rel_files = request.relevant_files or []
+        except Exception:
+            rel_files = []
+        try:
+            step_no = int(request.step_number)
+            total = int(request.total_steps)
+        except Exception:
+            step_no, total = 1, 1
+
+        high_conf = conf in {"high", "very_high", "almost_certain"}
+        rich_findings = len(findings_text) >= 200 or findings_text.count("\n") >= 2
+        has_files = len(rel_files) > 0
+        is_final = final_step or (step_no >= total)
+
+        return is_final and (high_conf or has_files or rich_findings)
+
 
     def _get_problem_context(self, request) -> str:
         """Get problem context from request. Override for custom context handling."""
@@ -477,6 +556,13 @@ but also acknowledge strong insights and valid conclusions.
         """
         Determine if expert analysis should be called based on confidence and completion.
         """
+        # Short-circuit: If assistant model is disabled, do NOT call expert analysis
+        try:
+            if request is not None and not self.get_request_use_assistant_model(request):
+                return False
+        except Exception:
+            pass
+
         if request:
             try:
                 # Don't call expert analysis if confidence is "certain"

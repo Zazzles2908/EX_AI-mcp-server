@@ -239,7 +239,7 @@ class PlannerTool(WorkflowTool):
         ]
 
         # Build schema with proper field exclusion (following consensus pattern)
-        return WorkflowSchemaBuilder.build_schema(
+        schema = WorkflowSchemaBuilder.build_schema(
             tool_specific_fields=planner_field_overrides,
             required_fields=[],  # No additional required fields beyond workflow defaults
             model_field_schema=self.get_model_field_schema(),
@@ -248,6 +248,10 @@ class PlannerTool(WorkflowTool):
             excluded_workflow_fields=excluded_workflow_fields,
             excluded_common_fields=excluded_common_fields,
         )
+        # Be tolerant of extra fields some clients send (e.g., temperature, thinking_mode)
+        # Planner ignores these, so allow additionalProperties to avoid hard validation failures.
+        schema["additionalProperties"] = True
+        return schema
 
     # ================================================================================
     # Abstract Methods - Required Implementation from BaseWorkflowMixin

@@ -7,11 +7,12 @@ from .shared.base_tool import BaseTool
 from tools.shared.base_models import ToolRequest
 from src.providers.kimi import KimiModelProvider
 from src.providers.registry import ModelProviderRegistry
+from src.providers.base import ProviderType
 
 class KimiChatWithToolsTool(BaseTool):
     def get_name(self) -> str:
         return "kimi_chat_with_tools"
-    
+
     def get_description(self) -> str:
         return (
             "Call Kimi chat completion with optional tools/tool_choice. Can auto-inject an internet tool based on env.\n"
@@ -19,7 +20,7 @@ class KimiChatWithToolsTool(BaseTool):
             "- {\"messages\":[\"Summarize README.md\"], \"model\":\"auto\"}\n"
             "- {\"messages\":[\"research X\"], \"use_websearch\":true, \"tool_choice\":\"auto\"}"
         )
-    
+
     def get_input_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
@@ -35,7 +36,7 @@ class KimiChatWithToolsTool(BaseTool):
             },
             "required": ["messages"],
         }
-    
+
     def get_system_prompt(self) -> str:
         return (
             "You are a Kimi chat orchestrator with tool-use support.\n"
@@ -51,27 +52,46 @@ class KimiChatWithToolsTool(BaseTool):
             "- File context can be added separately via kimi_upload_and_extract/kimi_multi_file_chat.\n\n"
             "Output: Return the raw response JSON (choices, usage). Keep responses concise and on-task."
         )
-    
+
     def get_request_model(self):
         return ToolRequest
-    
+
     def requires_model(self) -> bool:
         return False
-    
+
     async def prepare_prompt(self, request: ToolRequest) -> str:
         return ""
-    
+
     def format_response(self, response: str, request: ToolRequest, model_info: dict | None = None) -> str:
         return response
-    
+
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
-        # Resolve provider instance from registry; fallback to direct client if not configured
-        prov = ModelProviderRegistry.get_provider_for_model(arguments.get("model") or os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview"))
+        # Resolve provider instance from registry; force Kimi provider and model id
+        requested_model = arguments.get("model") or os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
+        # Map any non-Kimi requests (e.g., 'auto', 'glm-4.5-flash') to a valid Kimi default
+        if requested_model not in {"kimi-k2-0711-preview","kimi-k2-0905-preview","kimi-k2-turbo-preview","kimi-latest","kimi-thinking-preview","moonshot-v1-8k","moonshot-v1-32k","moonshot-v1-128k","moonshot-v1-8k-vision-preview","moonshot-v1-32k-vision-preview","moonshot-v1-128k-vision-preview"}:
+            requested_model = os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
+
+        prov = ModelProviderRegistry.get_provider(ProviderType.KIMI)
         if not isinstance(prov, KimiModelProvider):
             api_key = os.getenv("KIMI_API_KEY", "")
             if not api_key:
                 raise RuntimeError("KIMI_API_KEY is not configured")
             prov = KimiModelProvider(api_key=api_key)
+
+        # Observability: log final provider/model and flags (debug-level, no secrets)
+        try:
+            import logging
+            logging.getLogger("kimi_tools_chat").info(
+                "KimiChatWithTools: provider=KIMI model=%s stream=%s use_web=%s tools=%s tool_choice=%s",
+                requested_model,
+                stream_flag if 'stream_flag' in locals() else None,
+                bool(arguments.get("use_websearch", False)),
+                bool(tools),
+                tool_choice,
+            )
+        except Exception:
+            pass
 
         # Normalize tools and tool_choice
         tools = arguments.get("tools")
@@ -82,8 +102,25 @@ class KimiChatWithToolsTool(BaseTool):
                 tools = json.loads(tools)
             except Exception:
                 tools = None  # let provider run without tools rather than 400
-        # Ensure tools is a list of dicts
-        if tools is not None and not isinstance(tools, list):
+        # Normalize tools into list[dict] per provider schema
+        if isinstance(tools, list):
+            coerced: list[dict] = []
+            for it in tools:
+                if isinstance(it, dict):
+                    coerced.append(it)
+                elif isinstance(it, str):
+                    nm = it.strip()
+                    if nm.startswith("$"):
+                        # Builtin function shorthand like "$web_search"
+                        coerced.append({"type": "builtin_function", "function": {"name": nm}})
+                    else:
+                        # Drop unrecognized string tool spec to avoid provider 400s
+                        continue
+                else:
+                    # Unsupported type - drop
+                    continue
+            tools = coerced or None
+        elif tools is not None and not isinstance(tools, list):
             tools = [tools] if isinstance(tools, dict) else None
 
         # Standardize tool_choice to allowed strings when a complex object isn't provided
@@ -99,23 +136,15 @@ class KimiChatWithToolsTool(BaseTool):
             os.getenv("KIMI_ENABLE_INTERNET_TOOL", "false").strip().lower() == "true" or
             os.getenv("KIMI_ENABLE_INTERNET_SEARCH", "false").strip().lower() == "true"
         )
-        
-        if use_websearch:
-            # Fixed: Use the correct builtin_function format for web search
-            web_search_tool = {
-                "type": "builtin_function",
-                "function": {
-                    "name": "$web_search"
-                }
-            }
-            
-            if not tools:
-                tools = []
-            tools.append(web_search_tool)
-            
+
+        # Safety: do not inject web_search unless explicitly requested in arguments
+        # This prevents unexpected tool_calls when the caller didn't ask for web.
+        if use_websearch and bool(arguments.get("use_websearch", False)):
+            web_search_tool = {"type": "builtin_function", "function": {"name": "$web_search"}}
+            tools = (tools or []) + [web_search_tool]
             if tool_choice is None:
                 tool_choice = os.getenv("KIMI_DEFAULT_TOOL_CHOICE", "auto")
-        
+
         # Normalize messages into OpenAI-style list of {role, content}
         raw_msgs = arguments.get("messages")
         norm_msgs: list[dict[str, Any]] = []
@@ -141,54 +170,95 @@ class KimiChatWithToolsTool(BaseTool):
         else:
             # final fallback to prevent provider 400s
             norm_msgs = [{"role": "user", "content": str(raw_msgs)}]
-        
-        completion = prov.client.chat.completions.create(
-            model=arguments.get("model") or os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview"),
-            messages=norm_msgs,
-            tools=tools,
-            tool_choice=tool_choice,
-            temperature=float(arguments.get("temperature", 0.6)),
-            stream=bool(arguments.get("stream", False)),
-        )
-        
-        # Return structured+raw by default; allow raw-only via env flag
-        from pydantic.json import pydantic_encoder
-        
-        # Serialize provider response to a dict
-        try:
-            raw_text = json.dumps(completion, default=pydantic_encoder, ensure_ascii=False)
-            raw_obj = json.loads(raw_text)
-        except Exception:
-            raw_text = str(completion)
-            raw_obj = {"_text": raw_text}
-        
-        if os.getenv("KIMI_CHAT_RETURN_RAW_ONLY", "false").strip().lower() == "true":
-            return [TextContent(type="text", text=raw_text)]
-        
-        # Normalize primary fields for convenience
-        model_used = arguments.get("model") or os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
-        first_choice = None
-        try:
-            choices = raw_obj.get("choices") or []
-            if choices:
-                first_choice = choices[0]
-        except Exception:
+
+        import asyncio as _aio
+        stream_flag = bool(arguments.get("stream", os.getenv("KIMI_CHAT_STREAM_DEFAULT", "false").strip().lower() == "true"))
+        model_used = requested_model
+
+        if stream_flag:
+            # Handle streaming in a background thread; accumulate content
+            def _stream_call():
+                content_parts = []
+                raw_items = []
+                try:
+                    for evt in prov.client.chat.completions.create(
+                        model=model_used,
+                        messages=norm_msgs,
+                        tools=tools,
+                        tool_choice=tool_choice,
+                        temperature=float(arguments.get("temperature", 0.6)),
+                        stream=True,
+                    ):
+                        raw_items.append(evt)
+                        try:
+                            ch = getattr(evt, "choices", None) or []
+                            if ch:
+                                delta = getattr(ch[0], "delta", None)
+                                if delta:
+                                    piece = getattr(delta, "content", None)
+                                    if piece:
+                                        content_parts.append(str(piece))
+                        except Exception:
+                            pass
+                except Exception as e:
+                    raise e
+                return ("".join(content_parts), raw_items)
+
+            content_text, raw_stream = await _aio.to_thread(_stream_call)
+            normalized = {
+                "provider": "KIMI",
+                "model": model_used,
+                "content": content_text,
+                "tool_calls": None,
+                "usage": None,
+                "raw": {"stream": True, "items": [str(it) for it in raw_stream[:10]]},
+            }
+            return [TextContent(type="text", text=json.dumps(normalized, ensure_ascii=False))]
+        else:
+            # Non-streaming: offload blocking call to background thread
+            completion = await _aio.to_thread(
+                prov.client.chat.completions.create,
+                model=model_used,
+                messages=norm_msgs,
+                tools=tools,
+                tool_choice=tool_choice,
+                temperature=float(arguments.get("temperature", 0.6)),
+                stream=False,
+            )
+
+            from pydantic.json import pydantic_encoder
+            try:
+                raw_text = json.dumps(completion, default=pydantic_encoder, ensure_ascii=False)
+                raw_obj = json.loads(raw_text)
+            except Exception:
+                raw_text = str(completion)
+                raw_obj = {"_text": raw_text}
+
+            if os.getenv("KIMI_CHAT_RETURN_RAW_ONLY", "false").strip().lower() == "true":
+                return [TextContent(type="text", text=raw_text)]
+
             first_choice = None
-        
-        content = None
-        tool_calls = None
-        if isinstance(first_choice, dict):
-            msg = first_choice.get("message") or {}
-            content = msg.get("content")
-            tool_calls = msg.get("tool_calls")
-        
-        usage = raw_obj.get("usage")
-        normalized = {
-            "model": model_used,
-            "content": content,
-            "tool_calls": tool_calls,
-            "usage": usage,
-            "raw": raw_obj,
-        }
-        
-        return [TextContent(type="text", text=json.dumps(normalized, ensure_ascii=False))]
+            try:
+                choices = raw_obj.get("choices") or []
+                if choices:
+                    first_choice = choices[0]
+            except Exception:
+                first_choice = None
+
+            content = None
+            tool_calls = None
+            if isinstance(first_choice, dict):
+                msg = first_choice.get("message") or {}
+                content = msg.get("content")
+                tool_calls = msg.get("tool_calls")
+
+            usage = raw_obj.get("usage")
+            normalized = {
+                "provider": "KIMI",
+                "model": model_used,
+                "content": content,
+                "tool_calls": tool_calls,
+                "usage": usage,
+                "raw": raw_obj,
+            }
+            return [TextContent(type="text", text=json.dumps(normalized, ensure_ascii=False))]

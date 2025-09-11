@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import asyncio
 from typing import Any, Dict, List
 from pathlib import Path
 
@@ -129,8 +130,28 @@ class KimiUploadAndExtractTool(BaseTool):
                     except Exception:
                         pass
 
-                # Retrieve parsed content (always fetch content; cache stores only ids)
-                content = prov.client.files.content(file_id=file_id).text
+                # Retrieve parsed content with retry/backoff (provider may throttle on multiple files)
+                def _fetch():
+                    attempts = int(os.getenv("KIMI_FILES_FETCH_RETRIES", "3"))
+                    backoff = float(os.getenv("KIMI_FILES_FETCH_BACKOFF", "0.8"))
+                    delay = float(os.getenv("KIMI_FILES_FETCH_INITIAL_DELAY", "0.5"))
+                    last_err = None
+                    for _ in range(attempts):
+                        try:
+                            return prov.client.files.content(file_id=file_id).text
+                        except Exception as e:
+                            last_err = e
+                            # backoff before retry
+                            try:
+                                import time as _t
+                                _t.sleep(delay)
+                            except Exception:
+                                pass
+                            delay *= (1.0 + backoff)
+                    if last_err:
+                        raise last_err
+                    raise RuntimeError("Failed to fetch file content (unknown error)")
+                content = _fetch()
                 messages.append({"role": "system", "content": content, "_file_id": file_id})
                 evt.end(ok=True)
             except Exception as e:
@@ -150,7 +171,9 @@ class KimiUploadAndExtractTool(BaseTool):
         return messages
 
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
-        msgs = self._run(**arguments)
+        # Offload blocking provider/file I/O to a background thread to avoid blocking event loop
+        import asyncio as _aio
+        msgs = await _aio.to_thread(self._run, **arguments)
         return [TextContent(type="text", text=json.dumps(msgs, ensure_ascii=False))]
 
 

@@ -74,3 +74,83 @@
 {"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757505904.4072533}
 {"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "2cb83d02cc9fe35ea100e18ae84dca697a3afb4da15eb31935e7bdcb56b502ba", "t": 1757505904.6193137}
 {"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757505905.7392256}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757513310.3592348}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757513311.577344}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757514759.452313}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "5d4cf9e4a0669acfdc9917d2402947c1e93206f18c0e60d0e65c6cf96622b31e", "t": 1757514759.8526177}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757514760.070176}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757514760.2792325}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757514760.4883034}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "11a43db7cd46defe53430610f2dcd9bee83bd90fe19f67719998914a9968465a", "t": 1757514760.6937866}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757514761.593046}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757537752.842159}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757537753.6826103}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757537754.0472548}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757537754.5984895}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757537754.7995598}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757537755.0113947}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757540689.7672586}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757540690.66641}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757540691.0404158}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757540691.4177403}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757540691.641373}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "3301047d6fdd835b1005996a813f3fba5176adfb05ce05cd308d5dfe1fd70ea6", "t": 1757540691.8738856}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757540692.6722467}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "611f70cb95a04e057a42b60a37b31c1b5c59de659667e3a1246fac9236de4df7", "t": 1757540692.8844624}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757540693.6379747}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757541721.630334}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757541722.5963771}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757541722.9769313}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757541723.5336626}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757541723.858661}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "3301047d6fdd835b1005996a813f3fba5176adfb05ce05cd308d5dfe1fd70ea6", "t": 1757541724.0793624}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "611f70cb95a04e057a42b60a37b31c1b5c59de659667e3a1246fac9236de4df7", "t": 1757541724.2736235}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757542983.7432873}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757542984.5829747}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757542984.942402}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757542985.1441398}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757542985.428111}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "3301047d6fdd835b1005996a813f3fba5176adfb05ce05cd308d5dfe1fd70ea6", "t": 1757542985.653448}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "611f70cb95a04e057a42b60a37b31c1b5c59de659667e3a1246fac9236de4df7", "t": 1757542986.0047755}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "eaa8a37ee495e27897d2ece900cea85bec20d8cad70b814eae71237e91a63347", "t": 1757543548.8317862}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757543550.2056653}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "b5fc5288498d3d38fd129aeee3c214fb361658be7096dc7b6a185ded493f6992", "t": 1757543550.5734522}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757543552.5341249}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757543693.0026166}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757543693.8612761}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757543694.220072}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757543694.5751243}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757543694.793501}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "3301047d6fdd835b1005996a813f3fba5176adfb05ce05cd308d5dfe1fd70ea6", "t": 1757543695.0224438}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "611f70cb95a04e057a42b60a37b31c1b5c59de659667e3a1246fac9236de4df7", "t": 1757543695.2204385}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757544419.3593872}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757544420.066619}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757544420.4244587}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757544420.63455}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757544421.145034}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "3301047d6fdd835b1005996a813f3fba5176adfb05ce05cd308d5dfe1fd70ea6", "t": 1757544421.505171}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "611f70cb95a04e057a42b60a37b31c1b5c59de659667e3a1246fac9236de4df7", "t": 1757544421.8630643}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757546373.6573832}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757546373.6596642}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757546373.66023}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757546373.660794}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757546373.6613705}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "3301047d6fdd835b1005996a813f3fba5176adfb05ce05cd308d5dfe1fd70ea6", "t": 1757546373.6619625}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "611f70cb95a04e057a42b60a37b31c1b5c59de659667e3a1246fac9236de4df7", "t": 1757546373.6625316}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757546601.7861707}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757546602.620444}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757546603.001088}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757546603.358044}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757546603.5696943}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "3301047d6fdd835b1005996a813f3fba5176adfb05ce05cd308d5dfe1fd70ea6", "t": 1757546603.8023953}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "611f70cb95a04e057a42b60a37b31c1b5c59de659667e3a1246fac9236de4df7", "t": 1757546604.004458}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2801, "output_tokens": 2902, "t": 1757552912.2739663}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2045, "output_tokens": 6, "t": 1757578647.4604836}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "3218c5cde47662f93c1aa8bfa7f5dcc56396d257309d59affd31e05518b2907d", "t": 1757578946.070756}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1757578946.946766}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2605, "output_tokens": 1141, "t": 1757584733.01465}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2639, "output_tokens": 342, "t": 1757584929.3849916}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2606, "output_tokens": 299, "t": 1757585201.7423844}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 4841, "output_tokens": 977, "t": 1757585264.6003723}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2660, "output_tokens": 677, "t": 1757585600.1675158}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 5318, "output_tokens": 829, "t": 1757585648.0004365}

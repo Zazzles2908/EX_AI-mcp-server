@@ -26,6 +26,9 @@ import websockets
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 
+from mcp.server.models import InitializationOptions
+from mcp.server.stdio import stdio_server
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=LOG_LEVEL, stream=sys.stderr)
 logger = logging.getLogger("ws_shim")
@@ -49,10 +52,12 @@ EXAI_WS_PORT = int(os.getenv("EXAI_WS_PORT", "8765"))
 EXAI_WS_TOKEN = os.getenv("EXAI_WS_TOKEN", "")
 SESSION_ID = os.getenv("EXAI_SESSION_ID", str(uuid.uuid4()))
 MAX_MSG_BYTES = int(os.getenv("EXAI_WS_MAX_BYTES", str(32 * 1024 * 1024)))
-PING_INTERVAL = int(os.getenv("EXAI_WS_PING_INTERVAL", "25"))
-PING_TIMEOUT = int(os.getenv("EXAI_WS_PING_TIMEOUT", "10"))
+PING_INTERVAL = int(os.getenv("EXAI_WS_PING_INTERVAL", "45"))
+PING_TIMEOUT = int(os.getenv("EXAI_WS_PING_TIMEOUT", "30"))
 EXAI_WS_AUTOSTART = os.getenv("EXAI_WS_AUTOSTART", "true").strip().lower() == "true"
-EXAI_WS_CONNECT_TIMEOUT = float(os.getenv("EXAI_WS_CONNECT_TIMEOUT", "10"))
+EXAI_WS_CONNECT_TIMEOUT = float(os.getenv("EXAI_WS_CONNECT_TIMEOUT", "30"))
+EXAI_WS_HANDSHAKE_TIMEOUT = float(os.getenv("EXAI_WS_HANDSHAKE_TIMEOUT", "15"))
+EXAI_SHIM_ACK_GRACE_SECS = float(os.getenv("EXAI_SHIM_ACK_GRACE_SECS", "60"))
 
 server = Server(os.getenv("MCP_SERVER_ID", "ex-ws-shim"))
 
@@ -85,13 +90,18 @@ async def _ensure_ws():
         deadline = asyncio.get_running_loop().time() + EXAI_WS_CONNECT_TIMEOUT
         autostart_attempted = False
         last_err: Exception | None = None
+        backoff = 0.25
         while True:
             try:
+                # Allow disabling pings by setting EXAI_WS_PING_INTERVAL=0
+                _pi = None if PING_INTERVAL <= 0 else PING_INTERVAL
+                _pt = None if _pi is None or PING_TIMEOUT <= 0 else PING_TIMEOUT
                 _ws = await websockets.connect(
                     uri,
                     max_size=MAX_MSG_BYTES,
-                    ping_interval=PING_INTERVAL,
-                    ping_timeout=PING_TIMEOUT,
+                    ping_interval=_pi,
+                    ping_timeout=_pt,
+                    open_timeout=EXAI_WS_HANDSHAKE_TIMEOUT,
                 )
                 # Hello handshake
                 await _ws.send(json.dumps({
@@ -99,7 +109,8 @@ async def _ensure_ws():
                     "session_id": SESSION_ID,
                     "token": EXAI_WS_TOKEN,
                 }))
-                ack_raw = await _ws.recv()
+                # Wait for ack with a handshake timeout window independent of connect
+                ack_raw = await asyncio.wait_for(_ws.recv(), timeout=EXAI_WS_HANDSHAKE_TIMEOUT)
                 ack = json.loads(ack_raw)
                 if not ack.get("ok"):
                     raise RuntimeError(f"WS daemon refused connection: {ack}")
@@ -113,7 +124,9 @@ async def _ensure_ws():
                 # Check deadline
                 if asyncio.get_running_loop().time() >= deadline:
                     break
-                await asyncio.sleep(0.25)
+                # Exponential backoff with cap ~2s
+                await asyncio.sleep(backoff)
+                backoff = min(2.0, backoff * 1.5)
         # If we reach here, we failed to connect within timeout
         raise RuntimeError(f"Failed to connect to WS daemon at {uri} within {EXAI_WS_CONNECT_TIMEOUT}s: {last_err}")
 
@@ -144,7 +157,8 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
             "arguments": arguments or {},
         }))
         # Read until matching request_id with timeout
-        timeout_s = int(os.getenv("EXAI_SHIM_RPC_TIMEOUT", "30"))
+        timeout_s = float(os.getenv("EXAI_SHIM_RPC_TIMEOUT", "30"))
+        ack_grace = float(os.getenv("EXAI_SHIM_ACK_GRACE_SECS", "30"))
         deadline = asyncio.get_running_loop().time() + timeout_s
         while True:
             remaining = max(0.1, deadline - asyncio.get_running_loop().time())
@@ -152,7 +166,19 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
                 raw = await asyncio.wait_for((await _ensure_ws()).recv(), timeout=remaining)
             except asyncio.TimeoutError:
                 raise RuntimeError("Daemon did not return call_tool_res in time")
-            msg = json.loads(raw)
+            try:
+                msg = json.loads(raw)
+            except Exception:
+                continue
+            # Dynamically extend wait on call_tool_ack for this request
+            if msg.get("request_id") == req_id and msg.get("op") == "call_tool_ack":
+                ack_timeout = float(msg.get("timeout") or 0) or timeout_s
+                grace = float(os.getenv("EXAI_SHIM_ACK_GRACE_SECS", EXAI_SHIM_ACK_GRACE_SECS))
+                deadline = asyncio.get_running_loop().time() + ack_timeout + grace
+                continue
+            # Ignore progress or unrelated messages
+            if msg.get("request_id") == req_id and msg.get("op") == "progress":
+                continue
             if msg.get("op") == "call_tool_res" and msg.get("request_id") == req_id:
                 if msg.get("error"):
                     raise RuntimeError(f"Daemon error: {msg['error']}")
@@ -179,20 +205,16 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
                 raise
         raise
 
-
-async def _run() -> None:
-    # Use new mcp-server API: stdio_server() yields (read, write) streams.
-    # Build initialization options from the Server instance.
-    init_opts = server.create_initialization_options()
-    logger.debug("Starting stdio_server (async) for EX WS Shim using stream API")
-    from mcp.server.stdio import stdio_server as _stdio_server  # explicit import to avoid confusion
-    async with _stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, init_opts)
-
+# Single stdio entrypoint (cleaned up)
 
 def main() -> None:
+    init_opts = server.create_initialization_options()
     try:
-        asyncio.run(_run())
+        from mcp.server.stdio import stdio_server as _stdio_server
+        async def _runner():
+            async with _stdio_server() as (read_stream, write_stream):
+                await server.run(read_stream, write_stream, init_opts)
+        asyncio.run(_runner())
     except KeyboardInterrupt:
         logger.info("EX WS Shim interrupted; exiting cleanly")
     except Exception:
