@@ -4,6 +4,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+import time
+from datetime import datetime
+
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,16 +32,65 @@ def load_manifest() -> List[Batch]:
         batches.append(Batch(name=b["name"], category=b["category"], files=b.get("files", [])))
     return batches
 
+class Console:
+    @staticmethod
+    def hr(char: str = "-", width: int = 60) -> None:
+        print(char * width)
+
+    @staticmethod
+    def title(text: str) -> None:
+        Console.hr("=")
+        print(f"{text}")
+        Console.hr("=")
+
+    @staticmethod
+    def section(text: str) -> None:
+        Console.hr("-")
+        print(text)
+        Console.hr("-")
+
+    @staticmethod
+    def status(text: str) -> None:
+        now = datetime.now().strftime("%H:%M:%S")
+        print(f"[{now}] {text}")
+
+    @staticmethod
+    def flush() -> None:
+        sys.stdout.flush()
+
+    return batches
+
 
 def ensure_archive_dirs(categories: List[str]) -> None:
     for c in categories:
         (ARCHIVE / c).mkdir(parents=True, exist_ok=True)
 
 
-def dry_run(files: List[Path]) -> None:
-    print("[DRY-RUN] The following files would be archived:")
-    for f in files:
-        print(f" - {f.relative_to(ROOT)}")
+def dry_run_grouped(batches: List[Batch], verbose: bool = False) -> None:
+    Console.title("Phase 3 cleanup: DRY-RUN")
+    total_present = 0
+    total_missing = 0
+    for b in batches:
+        print(f"\n== Batch: {b.name} (category: {b.category}) ==")
+        present: List[str] = []
+        missing: List[str] = []
+        for rel in b.files:
+            if (ROOT / rel).exists():
+                present.append(rel)
+            else:
+                missing.append(rel)
+        total_present += len(present)
+        total_missing += len(missing)
+        print(f"  Present: {len(present)} | Missing: {len(missing)}")
+        if verbose and present:
+            print("  Files to archive:")
+            for rel in present:
+                print(f"   - {rel}")
+        if verbose and missing:
+            print("  Missing (skipped):")
+            for rel in missing:
+                print(f"   - {rel}")
+    print(f"\nSummary: {total_present} present, {total_missing} missing across {len(batches)} batch(es)")
 
 
 def archive_files(batch: Batch) -> List[Path]:
@@ -67,6 +120,7 @@ def delete_files(paths: List[Path]) -> None:
 def restore_batch(batch_name: str) -> None:
     # Find batch
     batches = load_manifest()
+
     batch = next((b for b in batches if b.name == batch_name), None)
     if not batch:
         raise SystemExit(f"Batch not found: {batch_name}")
@@ -86,6 +140,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Phase 3 cleanup helper (archive-first)")
     parser.add_argument("mode", choices=["dry-run", "archive", "delete", "restore"], help="Operation mode")
     parser.add_argument("--batch", dest="batch", help="Specific batch name for restore")
+    parser.add_argument("--verbose", dest="verbose", action="store_true", help="Verbose output for dry-run")
+
     parser.add_argument("--delete", dest="do_delete", action="store_true", help="After archive, perform deletion")
     args = parser.parse_args()
 
@@ -101,7 +157,7 @@ def main() -> None:
     all_files = [ROOT / rel for b in batches for rel in b.files]
 
     if args.mode == "dry-run":
-        dry_run(all_files)
+        dry_run_grouped(batches, verbose=args.verbose)
         return
 
     if args.mode == "archive":
