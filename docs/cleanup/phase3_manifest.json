@@ -77,6 +77,20 @@
       "category": "schemas_legacy",
       "files": [
       ]
+    },
+    {
+      "name": "monitoring_legacy",
+      "category": "monitoring_legacy",
+      "files": [
+        "logs/mcp_activity.log",
+        "logs/mcp_server.log",
+        "logs/toolcalls.jsonl",
+        "logs/wrapper_error.log",
+        "logs/ws_daemon.health.json",
+        "logs/ws_daemon.metrics.jsonl",
+        "logs/ws_daemon.pid",
+        "logs/ws_shim.log"
+      ]
     }
   ]
 }

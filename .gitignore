@@ -184,3 +184,9 @@ CLAUDE.local.md
 logs/
 *.backup
 /.desktop_configured
+
+# Ignore JSONL logs
+.logs/*.jsonl
+
+# Ignore JSONL logs
+.logs/*.jsonl

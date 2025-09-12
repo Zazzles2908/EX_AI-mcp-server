@@ -48,3 +48,31 @@ This plan follows the Cleanup Prompt. All removals are staged into `archive/` fi
   - assessments/json/*.kimi.json and *.glm.json artifacts from earlier analysis runs
 - schemas_templates:
   - any duplicated/obsolete schema builders or templates once identified
+
+
+## Final plan and task tree (derived from 5 docs)
+
+- Consensus legacy cleanup
+  - [x] Inventory errors snapshots under assessments/json/*consensus.json
+  - [x] Add to manifest (consensus_legacy)
+  - [ ] Archive and optionally delete originals after backup
+- Assessment infra cleanup
+  - [x] Inventory *.kimi.json and *.glm.json under assessments/json
+  - [x] Add to manifest (assessment_legacy)
+  - [ ] Archive and optionally delete originals after backup
+- Schemas/templates cleanup
+  - [ ] Inventory duplicated/obsolete schema builders and templates
+  - [ ] Add to manifest (schemas_templates)
+  - [ ] Archive and optionally delete originals after backup
+- Error/config legacy cleanup
+  - [ ] Identify and add obsolete error utilities and config entries replaced by flags
+  - [ ] Add to manifest (error_legacy, config_legacy)
+  - [ ] Archive and optionally delete originals after backup
+- Monitoring/log artifacts cleanup
+  - [x] Inventory log artifacts
+  - [x] Add to manifest (monitoring_legacy)
+  - [ ] Archive and optionally delete originals after backup
+
+Notes:
+- Feature flags remain default OFF; no schema/API changes
+- Archive-first process, restore supported per batch
