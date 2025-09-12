@@ -118,17 +118,6 @@ class ConsensusRequest(WorkflowRequest):
     # Optional images for visual debugging
     images: list[str] | None = Field(default=None, description=CONSENSUS_WORKFLOW_FIELD_DESCRIPTIONS["images"])
 
-    # Conditional validation: require findings (and models) on step 1 only
-    @model_validator(mode="after")
-    def _validate_step_requirements(self):  # type: ignore[override]
-        if getattr(self, "step_number", 1) == 1:
-            if not self.findings or not str(self.findings).strip():
-                raise ValueError("'findings' is required and cannot be empty for step 1")
-            if not self.models or len(self.models) == 0:
-                # Allow zero models but warn via exception message for clarity
-                # Raising makes schema intent explicit; caller can pass an empty list to skip external models
-                pass
-        return self
 
     # Override inherited fields to exclude them from schema
     temperature: float | None = Field(default=None, exclude=True)
@@ -144,10 +133,17 @@ class ConsensusRequest(WorkflowRequest):
 
     @model_validator(mode="after")
     def validate_step_one_requirements(self):
-        """Ensure step 1 has required models field and unique model+stance combinations."""
-        if self.step_number == 1:
+        """Ensure step 1 has required fields and valid models configuration.
+        Consolidates all step-1 validation into a single validator to avoid conflicts.
+        """
+        if getattr(self, "step_number", 1) == 1:
+            # findings must be present and non-empty
+            if not self.findings or not str(self.findings).strip():
+                raise ValueError("Step 1 requires non-empty 'findings'.")
+
+            # models must be provided at step 1
             if not self.models:
-                raise ValueError("Step 1 requires 'models' field to specify which models to consult")
+                raise ValueError("Step 1 requires 'models' to specify which models to consult.")
 
             # Check for unique model + stance combinations
             seen_combinations = set()
@@ -155,7 +151,6 @@ class ConsensusRequest(WorkflowRequest):
                 model_name = model_config.get("model", "")
                 stance = model_config.get("stance", "neutral")
                 combination = f"{model_name}:{stance}"
-
                 if combination in seen_combinations:
                     raise ValueError(
                         f"Duplicate model + stance combination found: {model_name} with stance '{stance}'. "

@@ -44,8 +44,8 @@ EX_AI-mcp-server/
 **Key Improvements:**
 - **Proper Python packaging** with `src/` directory structure
 - **Modular architecture** with clear separation between core, tools, and utilities
-- **Comprehensive documentation** with 115+ markdown files
-- **Extensive testing** with 100+ test files covering various scenarios
+- **Comprehensive documentation** (dozens of markdown files)
+- **Extensive testing** (broad suite of unit and integration tests)
 - **Professional project structure** with proper configuration files
 
 ---
@@ -195,20 +195,14 @@ class ActivityTool(SimpleTool):
 
 ---
 
-## 6. Recent Commits Analysis
+## 6. Recent Activity (Summary)
 
-### Commit Activity Pattern: **HIGHLY ACTIVE**
+### Activity Pattern: **HIGHLY ACTIVE**
 
-**Recent Commits (Last 10):**
-
-1. **d2157da** (Sep 12, 23:32) - `chore: auto-sync`
-   - Updated cleanup phase 3 planning
-   - Enhanced cleanup scripts
-
-2. **d3279c8** (Sep 12) - `chore: auto-sync`
-   - Major file reorganization (59 files changed)
-   - Moved assessment files to archive
-   - Added activity flags and testing
+**Recent activity highlights (at time of this assessment):**
+- Cleanup Phase 3 plan and script improvements
+- Archival of legacy assessment artifacts; manifest-driven cleanup
+- Activity tool flags added and tests introduced
 
 3. **4eea24c** - `chore: auto-sync`
    - Removed Git guide, enhanced cleanup utilities
@@ -227,9 +221,9 @@ class ActivityTool(SimpleTool):
 
 **Key Patterns:**
 - **Frequent commits** showing active development
-- **Large-scale refactoring** with proper architectural improvements
+- **Large-scale refactoring** with architectural improvements
 - **Systematic cleanup** and organization efforts
-- **Documentation-driven development** with extensive external reviews
+- **Documentation-driven development** with external reviews
 
 ---
 
@@ -249,10 +243,10 @@ class ActivityTool(SimpleTool):
 
 ### 🟡 **MEDIUM PRIORITY**
 
-3. **Activity Tool Limitations**
-   - Hard-coded log paths may fail with log rotation
-   - Limited time-window filtering capabilities
-   - Raw text output format limitations
+3. **Activity Tool (flag-gated enhancements available)**
+   - since/until time-window filtering and JSONL output are implemented behind flags (defaults OFF)
+   - legacy behavior unchanged with flags OFF; recommend enabling flags during validation
+   - continue improving rotation handling and tests
 
 4. **Configuration Complexity**
    - Over-engineered configuration with 30+ fields
@@ -322,9 +316,8 @@ class ActivityTool(SimpleTool):
 ### Medium-term Improvements
 
 4. **Enhance Activity Tool**
-   - Implement proper log rotation handling
-   - Add time-window filtering capabilities
-   - Support structured output formats
+   - Extend rotation handling and add more tests
+   - since/until time-window filters and JSONL structured output are now available behind flags; document enablement steps
 
 5. **Configuration Simplification**
    - Reduce configuration complexity
