@@ -31,7 +31,7 @@ EX_AI-mcp-server/
 │   ├── providers/         # AI model providers
 │   ├── daemon/           # WebSocket daemon
 │   └── tools/            # Tool definitions
-├── tools/                # Tool implementations (308 Python files)
+├── tools/                # Tool implementations (active runtime tools; src/tools used for staged packaging)
 ├── docs/                 # Comprehensive documentation
 │   ├── external_review/  # NEW - Assessment analysis
 │   ├── architecture/     # Architecture documentation
