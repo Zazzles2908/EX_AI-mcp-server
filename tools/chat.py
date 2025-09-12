@@ -199,6 +199,40 @@ class ChatTool(SimpleTool):
         This implementation matches the original Chat tool exactly while using
         SimpleTool convenience methods for cleaner code.
         """
+        # Optional security enforcement per Cleanup/Upgrade prompts
+        try:
+            from config import SECURE_INPUTS_ENFORCED
+            if SECURE_INPUTS_ENFORCED:
+                from pathlib import Path
+                from src.core.validation.secure_input_validator import SecureInputValidator
+
+                repo_root = Path(__file__).resolve().parents[1]
+                v = SecureInputValidator(repo_root=str(repo_root))
+
+                # Normalize/validate files inside repo
+                if request.files:
+                    normalized_files: list[str] = []
+                    for f in request.files:
+                        p = v.normalize_and_check(f)
+                        normalized_files.append(str(p))
+                    request.files = normalized_files
+
+                # Validate images count and normalize path-based images
+                imgs = request.images or []
+                # Use size placeholders (0) since Chat may receive data URLs; count enforcement still applies
+                v.validate_images([0] * len(imgs), max_images=10)
+                normalized_images: list[str] = []
+                for img in imgs:
+                    if isinstance(img, str) and (img.startswith("data:") or "base64," in img):
+                        normalized_images.append(img)
+                    else:
+                        p = v.normalize_and_check(img)
+                        normalized_images.append(str(p))
+                request.images = normalized_images
+        except Exception as e:
+            # Surface a clear validation error; callers will see this as tool error
+            raise ValueError(f"[chat:security] {e}")
+
         # Use SimpleTool's Chat-style prompt preparation
         return self.prepare_chat_style_prompt(request)
 

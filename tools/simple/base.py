@@ -1004,16 +1004,41 @@ Please provide a thoughtful, comprehensive response:"""
             Optional[str]: Error message if validation fails, None if all paths are valid
         """
         import os
+        from pathlib import Path
+        from utils.file_utils import resolve_and_validate_path
 
         # Check if request has 'files' attribute (used by most tools)
         files = self.get_request_files(request)
         if files:
+            # Compute repository root (two levels up from tools/simple/base.py -> repo root)
+            repo_root = Path(__file__).resolve().parents[2]
+
             for file_path in files:
+                # 1) Absolute path requirement
                 if not os.path.isabs(file_path):
                     return (
                         f"Error: All file paths must be FULL absolute paths to real files / folders - DO NOT SHORTEN. "
                         f"Received relative path: {file_path}\n"
                         f"Please provide the full absolute path starting with '/' (must be FULL absolute paths to real files / folders - DO NOT SHORTEN)"
+                    )
+
+                # 2) Secure resolution + containment check within repo root
+                try:
+                    resolved = resolve_and_validate_path(file_path)
+                except (ValueError, PermissionError) as e:
+                    return (
+                        f"Error: Invalid or disallowed path: {file_path}\n"
+                        f"Reason: {type(e).__name__}: {e}"
+                    )
+
+                try:
+                    # Ensure the path is within the repository root
+                    resolved.relative_to(repo_root)
+                except Exception:
+                    return (
+                        f"Error: File path is outside the permitted project workspace.\n"
+                        f"Path: {file_path}\n"
+                        f"Allowed root: {repo_root}"
                     )
 
         return None

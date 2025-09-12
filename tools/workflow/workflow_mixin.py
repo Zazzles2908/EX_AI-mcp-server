@@ -587,6 +587,12 @@ class BaseWorkflowMixin(ABC):
             self._embedded_file_content = file_content
             self._actually_processed_files = processed_files
 
+            # Update consolidated findings with the actual files processed so files_examined is accurate
+            try:
+                self.consolidated_findings.files_checked.update(processed_files)
+            except Exception:
+                pass
+
             logger.info(
                 f"[WORKFLOW_FILES] {self.get_name()}: Embedded {len(processed_files)} relevant_files for final analysis"
             )
@@ -836,6 +842,53 @@ class BaseWorkflowMixin(ABC):
         """
         Prepare step data from request. Tools can override to customize field mapping.
         """
+        # Optional security enforcement per Cleanup/Upgrade prompts
+        try:
+            from config import SECURE_INPUTS_ENFORCED
+            if SECURE_INPUTS_ENFORCED:
+                from pathlib import Path
+                from src.core.validation.secure_input_validator import SecureInputValidator
+
+                repo_root = Path(__file__).resolve().parents[2]
+                v = SecureInputValidator(repo_root=str(repo_root))
+
+                # Normalize relevant_files within repo
+                try:
+                    req_files = self.get_request_relevant_files(request) or []
+                except Exception:
+                    req_files = []
+                if req_files:
+                    normalized_files: list[str] = []
+                    for f in req_files:
+                        p = v.normalize_and_check(f)
+                        normalized_files.append(str(p))
+                    # Update request to the normalized list
+                    try:
+                        request.relevant_files = normalized_files
+                    except Exception:
+                        pass
+
+                # Validate images count and normalize path-based images
+                try:
+                    imgs = self.get_request_images(request) or []
+                except Exception:
+                    imgs = []
+                v.validate_images([0] * len(imgs), max_images=10)
+                normalized_images: list[str] = []
+                for img in imgs:
+                    if isinstance(img, str) and (img.startswith("data:") or "base64," in img):
+                        normalized_images.append(img)
+                    else:
+                        p = v.normalize_and_check(img)
+                        normalized_images.append(str(p))
+                try:
+                    request.images = normalized_images
+                except Exception:
+                    pass
+        except Exception as e:
+            # Raise clear error for caller visibility
+            raise ValueError(f"[workflow:security] {e}")
+
         step_data = {
             "step": request.step,
             "step_number": request.step_number,
@@ -868,6 +921,30 @@ class BaseWorkflowMixin(ABC):
                 "current_confidence": self.get_request_confidence(request),
             },
         }
+        # Optional: attach agentic routing hints without changing behavior
+        try:
+            from config import AGENTIC_ENGINE_ENABLED, ROUTER_ENABLED, CONTEXT_MANAGER_ENABLED
+            if AGENTIC_ENGINE_ENABLED and (ROUTER_ENABLED or CONTEXT_MANAGER_ENABLED):
+                from src.core.agentic.engine import AutonomousWorkflowEngine
+                engine = AutonomousWorkflowEngine()
+                # Build a minimal request-like structure for routing hints
+                messages = []
+                try:
+                    # Prefer consolidated findings if available, else synthesize from request
+                    initial = self.get_initial_request(request.step)
+                    messages = [{"role": "user", "content": initial or (request.findings or "") }]
+                except Exception:
+                    pass
+                decision = engine.decide({"messages": messages})
+                response_data[f"{self.get_name()}_status"]["agentic_hints"] = {
+                    "platform": decision.platform,
+                    "estimated_tokens": decision.estimated_tokens,
+                    "images_present": decision.images_present,
+                    "task_type": decision.task_type,
+                }
+        except Exception:
+            # Silently ignore hint failures; behavior must remain unchanged
+            pass
 
         if continuation_id:
             response_data["continuation_id"] = continuation_id

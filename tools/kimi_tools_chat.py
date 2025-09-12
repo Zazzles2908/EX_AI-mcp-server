@@ -343,6 +343,21 @@ class KimiChatWithToolsTool(BaseTool):
                 if not tcs:
                     return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
+                # Append the assistant message that requested tool calls so provider can correlate tool_call_id
+                try:
+                    raw_payload = result.get("raw") if isinstance(result, dict) else None
+                    if hasattr(raw_payload, "model_dump"):
+                        raw_payload = raw_payload.model_dump()
+                    choices = (raw_payload or {}).get("choices") or []
+                    msg = (choices[0].get("message") if choices else {}) or {}
+                    assistant_content = msg.get("content") or ""
+                    # Preserve tool_calls exactly as returned by provider
+                    assistant_msg = {"role": "assistant", "content": assistant_content, "tool_calls": tcs}
+                    messages_local.append(assistant_msg)
+                except Exception:
+                    # If anything goes wrong, still try to proceed with tool messages
+                    pass
+
                 # Execute supported tools locally (function web_search)
                 tool_msgs = []
                 for tc in tcs:

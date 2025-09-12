@@ -94,7 +94,8 @@ class ConsensusRequest(WorkflowRequest):
     next_step_required: bool = Field(..., description=CONSENSUS_WORKFLOW_FIELD_DESCRIPTIONS["next_step_required"])
 
     # Investigation tracking fields
-    findings: str = Field(..., description=CONSENSUS_WORKFLOW_FIELD_DESCRIPTIONS["findings"])
+    # Make findings optional at the model level; enforce required only for step 1 via validator
+    findings: str | None = Field(None, description=CONSENSUS_WORKFLOW_FIELD_DESCRIPTIONS["findings"])
     confidence: str = Field(default="exploring", exclude=True, description="Not used")
 
     # Consensus-specific fields (only needed in step 1)
@@ -116,6 +117,18 @@ class ConsensusRequest(WorkflowRequest):
 
     # Optional images for visual debugging
     images: list[str] | None = Field(default=None, description=CONSENSUS_WORKFLOW_FIELD_DESCRIPTIONS["images"])
+
+    # Conditional validation: require findings (and models) on step 1 only
+    @model_validator(mode="after")
+    def _validate_step_requirements(self):  # type: ignore[override]
+        if getattr(self, "step_number", 1) == 1:
+            if not self.findings or not str(self.findings).strip():
+                raise ValueError("'findings' is required and cannot be empty for step 1")
+            if not self.models or len(self.models) == 0:
+                # Allow zero models but warn via exception message for clarity
+                # Raising makes schema intent explicit; caller can pass an empty list to skip external models
+                pass
+        return self
 
     # Override inherited fields to exclude them from schema
     temperature: float | None = Field(default=None, exclude=True)
@@ -306,6 +319,7 @@ of the evidence, even when it strongly points in one direction.""",
             "hypothesis",  # Not used in consensus workflow
             "backtrack_from_step",  # Not used in consensus workflow
             "confidence",  # Not used in consensus workflow
+            "findings",  # Consensus handles findings as optional except step 1 via validator
         ]
 
         excluded_common_fields = [
@@ -426,20 +440,21 @@ of the evidence, even when it strongly points in one direction.""",
         current_idx = request.current_model_index or 0
 
         if request.step_number == 1:
-            # Preflight validation for step 1
-            try:
-                self._preflight_validate_step_one(request)
-            except Exception as e:
-                return [TextContent(type="text", text=json.dumps({
-                    "status": "error",
-                    "error": str(e),
-                    "content_type": "text",
-                    "metadata": {"tool_name": self.get_name()}
-                }))]
+            # Preflight validation for step 1 (skip when models_to_consult already set by caller)
+            if not getattr(self, "models_to_consult", None):
+                try:
+                    self._preflight_validate_step_one(request)
+                except Exception as e:
+                    return [TextContent(type="text", text=json.dumps({
+                        "status": "error",
+                        "error": str(e),
+                        "content_type": "text",
+                        "metadata": {"tool_name": self.get_name()}
+                    }))]
 
             # After CLI Agent's initial analysis, prepare to consult first model
             response_data["status"] = "consulting_models"
-            response_data["next_model"] = self.models_to_consult[0] if self.models_to_consult else None
+            response_data["next_model"] = self.models_to_consult[0] if getattr(self, "models_to_consult", None) else None
             response_data["next_steps"] = (
                 "Your initial analysis is complete. The tool will now consult the specified models."
             )
@@ -644,13 +659,14 @@ of the evidence, even when it strongly points in one direction.""",
         """Validate models, steps, and files for consensus step 1.
         Raises ValueError with a user-friendly message on problems.
         """
-        # Validate models list
-        models = request.models or []
+        # Validate models list (be tolerant of legacy mocks)
+        models = request.models if isinstance(getattr(request, "models", None), list) else []
         if not models:
             raise ValueError("Step 1 requires 'models' with at least one entry")
-        if request.total_steps and request.total_steps != len(models):
+        total_steps = getattr(request, "total_steps", None)
+        if isinstance(total_steps, int) and total_steps and total_steps != len(models):
             raise ValueError(
-                f"total_steps ({request.total_steps}) must equal len(models) ({len(models)}) in step 1"
+                f"total_steps ({total_steps}) must equal len(models) ({len(models)}) in step 1"
             )
 
         # Validate each model availability

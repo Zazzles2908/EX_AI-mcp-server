@@ -399,8 +399,29 @@ class AnalyzeTool(WorkflowTool):
 
     def prepare_expert_analysis_context(self, consolidated_findings) -> str:
         """Prepare context for external model call for final analysis validation."""
+        # Optional: apply context optimization under agentic flags
+        try:
+            from config import AGENTIC_ENGINE_ENABLED, CONTEXT_MANAGER_ENABLED
+            if AGENTIC_ENGINE_ENABLED and CONTEXT_MANAGER_ENABLED:
+                from src.core.agentic.engine import AutonomousWorkflowEngine
+                eng = AutonomousWorkflowEngine()
+                messages = [
+                    {"role": "system", "content": self.get_system_prompt()},
+                    {"role": "user", "content": self.initial_request or 'Code analysis workflow initiated'},
+                ]
+                decision = eng.decide({"messages": messages})
+                # Compose a short optimized preamble (observability; prompt remains textual)
+                preamble = (
+                    f"[agentic platform={decision.platform} est_tokens={decision.estimated_tokens} "
+                    f"images={decision.images_present} task={decision.task_type}]\n"
+                )
+            else:
+                preamble = ""
+        except Exception:
+            preamble = ""
+
         context_parts = [
-            f"=== ANALYSIS REQUEST ===\\n{self.initial_request or 'Code analysis workflow initiated'}\\n=== END REQUEST ==="
+            preamble + f"=== ANALYSIS REQUEST ===\\n{self.initial_request or 'Code analysis workflow initiated'}\\n=== END REQUEST ==="
         ]
 
         # Add investigation summary
@@ -437,6 +458,44 @@ class AnalyzeTool(WorkflowTool):
 
     def _build_analysis_summary(self, consolidated_findings) -> str:
         """Prepare a comprehensive summary of the analysis investigation."""
+
+    async def _call_expert_analysis(self, arguments: dict, request) -> dict:  # type: ignore[override]
+        """
+        Agentic Phase 2: localized resilient wrapper for expert analysis (flag-gated).
+        Falls back to base implementation when flags are OFF.
+        """
+        try:
+            from config import AGENTIC_ENGINE_ENABLED, RESILIENT_ERRORS_ENABLED
+        except Exception:
+            AGENTIC_ENGINE_ENABLED = False
+            RESILIENT_ERRORS_ENABLED = False
+
+        # Default path (no behavior change)
+        if not (AGENTIC_ENGINE_ENABLED and RESILIENT_ERRORS_ENABLED):
+            from tools.workflow.workflow_mixin import BaseWorkflowMixin  # type: ignore
+            return await super()._call_expert_analysis(arguments, request)
+
+        import asyncio
+
+        retries = 2
+        delay = 0.25
+        last_err: Exception | None = None
+        for attempt in range(retries + 1):
+            try:
+                return await super()._call_expert_analysis(arguments, request)
+            except Exception as e:  # noqa: PERF203
+                last_err = e
+                if attempt == retries:
+                    break
+                try:
+                    await asyncio.sleep(delay)
+                except Exception:
+                    pass
+                delay = min(delay * 2, 2.0)
+        # If all retries failed, re-raise the last error
+        assert last_err is not None
+        raise last_err
+
         summary_parts = [
             "=== SYSTEMATIC ANALYSIS INVESTIGATION SUMMARY ===",
             f"Total steps: {len(consolidated_findings.findings)}",
@@ -478,6 +537,45 @@ class AnalyzeTool(WorkflowTool):
         """
         Map analyze-specific fields for internal processing.
         """
+        # Optional security enforcement per Cleanup/Upgrade prompts
+        try:
+            from config import SECURE_INPUTS_ENFORCED
+            if SECURE_INPUTS_ENFORCED:
+                from pathlib import Path
+                from src.core.validation.secure_input_validator import SecureInputValidator
+
+                repo_root = Path(__file__).resolve().parents[1]
+                v = SecureInputValidator(repo_root=str(repo_root))
+
+                # Normalize relevant_files within repo
+                try:
+                    req_files = request.relevant_files or []
+                except Exception:
+                    req_files = []
+                if req_files:
+                    normalized_files: list[str] = []
+                    for f in req_files:
+                        p = v.normalize_and_check(f)
+                        normalized_files.append(str(p))
+                    request.relevant_files = normalized_files
+
+                # Validate images count and normalize path-based images
+                try:
+                    imgs = request.images or []
+                except Exception:
+                    imgs = []
+                v.validate_images([0] * len(imgs), max_images=10)
+                normalized_images: list[str] = []
+                for img in imgs:
+                    if isinstance(img, str) and (img.startswith("data:") or "base64," in img):
+                        normalized_images.append(img)
+                    else:
+                        p = v.normalize_and_check(img)
+                        normalized_images.append(str(p))
+                request.images = normalized_images
+        except Exception as e:
+            raise ValueError(f"[analyze:security] {e}")
+
         step_data = {
             "step": request.step,
             "step_number": request.step_number,
@@ -490,6 +588,22 @@ class AnalyzeTool(WorkflowTool):
             "hypothesis": request.findings,  # Map findings to hypothesis for compatibility
             "images": request.images or [],
         }
+        # Optional: attach agentic hints for this step when enabled (observability only)
+        try:
+            from config import AGENTIC_ENGINE_ENABLED
+            if AGENTIC_ENGINE_ENABLED:
+                from src.core.agentic.engine import AutonomousWorkflowEngine
+                engine = AutonomousWorkflowEngine()
+                messages = [{"role": "user", "content": request.findings or request.step or ""}]
+                decision = engine.decide({"messages": messages})
+                step_data["agentic_hints"] = {
+                    "platform": decision.platform,
+                    "estimated_tokens": decision.estimated_tokens,
+                    "images_present": decision.images_present,
+                    "task_type": decision.task_type,
+                }
+        except Exception:
+            pass
         return step_data
 
     def should_skip_expert_analysis(self, request, consolidated_findings) -> bool:

@@ -69,6 +69,13 @@ DEFAULT_THINKING_MODE_THINKDEEP = os.getenv("DEFAULT_THINKING_MODE_THINKDEEP", "
 THINK_ROUTING_ENABLED = os.getenv("THINK_ROUTING_ENABLED", "true").strip().lower() == "true"
 
 # Consensus Tool Defaults
+# Agentic engine feature flags (default OFF for safe rollout)
+AGENTIC_ENGINE_ENABLED = os.getenv("AGENTIC_ENGINE_ENABLED", "false").strip().lower() == "true"
+ROUTER_ENABLED = os.getenv("ROUTER_ENABLED", "false").strip().lower() == "true"
+CONTEXT_MANAGER_ENABLED = os.getenv("CONTEXT_MANAGER_ENABLED", "false").strip().lower() == "true"
+RESILIENT_ERRORS_ENABLED = os.getenv("RESILIENT_ERRORS_ENABLED", "false").strip().lower() == "true"
+SECURE_INPUTS_ENFORCED = os.getenv("SECURE_INPUTS_ENFORCED", "false").strip().lower() == "true"
+
 # Consensus timeout and rate limiting settings
 DEFAULT_CONSENSUS_TIMEOUT = 120.0  # 2 minutes per model
 DEFAULT_CONSENSUS_MAX_INSTANCES_PER_COMBINATION = 2

@@ -76,9 +76,28 @@ def get_tool_source_file(tool_name: str) -> str:
 async def run_tool_async(tool, arguments: dict) -> dict:
     try:
         res = await tool.execute(arguments)
-        if isinstance(res, list) and res and isinstance(res[0], TextContent):
-            txt = res[0].text
-            return json.loads(txt)
+        if isinstance(res, list) and res:
+            # Prefer first TextContent; if none, use stringified content
+            txt = None
+            for item in res:
+                if isinstance(item, TextContent):
+                    txt = item.text
+                    break
+            if txt is None:
+                txt = str(res[0])
+            # Try strict JSON first
+            try:
+                return json.loads(txt)
+            except Exception:
+                # Heuristic: extract first JSON object substring
+                try:
+                    start = txt.find('{')
+                    if start != -1:
+                        candidate = txt[start:]
+                        return json.loads(candidate)
+                except Exception:
+                    pass
+                return {"status": "error", "error": "Response was not valid JSON", "raw": txt[:2000]}
         return {"status": "error", "error": "Unexpected tool return"}
     except Exception as e:
         return {"status": "error", "error": str(e)}

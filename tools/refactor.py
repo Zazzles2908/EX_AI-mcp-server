@@ -475,6 +475,45 @@ class RefactorTool(WorkflowTool):
         """
         Map refactor workflow-specific fields for internal processing.
         """
+        # Optional security enforcement per Cleanup/Upgrade prompts
+        try:
+            from config import SECURE_INPUTS_ENFORCED
+            if SECURE_INPUTS_ENFORCED:
+                from pathlib import Path
+                from src.core.validation.secure_input_validator import SecureInputValidator
+
+                repo_root = Path(__file__).resolve().parents[1]
+                v = SecureInputValidator(repo_root=str(repo_root))
+
+                # Normalize relevant_files within repo
+                try:
+                    req_files = request.relevant_files or []
+                except Exception:
+                    req_files = []
+                if req_files:
+                    normalized_files: list[str] = []
+                    for f in req_files:
+                        p = v.normalize_and_check(f)
+                        normalized_files.append(str(p))
+                    request.relevant_files = normalized_files
+
+                # Validate images count and normalize path-based images
+                try:
+                    imgs = request.images or []
+                except Exception:
+                    imgs = []
+                v.validate_images([0] * len(imgs), max_images=10)
+                normalized_images: list[str] = []
+                for img in imgs:
+                    if isinstance(img, str) and (img.startswith("data:") or "base64," in img):
+                        normalized_images.append(img)
+                    else:
+                        p = v.normalize_and_check(img)
+                        normalized_images.append(str(p))
+                request.images = normalized_images
+        except Exception as e:
+            raise ValueError(f"[refactor:security] {e}")
+
         step_data = {
             "step": request.step,
             "step_number": request.step_number,
