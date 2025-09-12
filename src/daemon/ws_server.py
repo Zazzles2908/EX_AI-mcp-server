@@ -99,6 +99,9 @@ _provider_sems: dict[str, asyncio.BoundedSemaphore] = {
     "KIMI": asyncio.BoundedSemaphore(KIMI_MAX_INFLIGHT),
     "GLM": asyncio.BoundedSemaphore(GLM_MAX_INFLIGHT),
 }
+# Track in-flight calls by semantic call key so duplicate calls can await the same result
+_inflight_by_key: dict[str, asyncio.Event] = {}
+
 _shutdown = asyncio.Event()
 RESULT_TTL_SECS = int(os.getenv("EXAI_WS_RESULT_TTL", "600"))
 _results_cache: dict[str, dict] = {}
@@ -267,6 +270,14 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
             return
         # Semantic de-duplication: if client reconnects and reissues the same call with a new req_id, serve cached outputs
         call_key = _make_call_key(name, arguments)
+        # Optional: disable semantic coalescing per tool via env EXAI_WS_DISABLE_COALESCE_FOR_TOOLS
+        try:
+            _disable_set = {s.strip().lower() for s in os.getenv("EXAI_WS_DISABLE_COALESCE_FOR_TOOLS", "").split(",") if s.strip()}
+        except Exception:
+            _disable_set = set()
+        if name.lower() in _disable_set:
+            # Make call_key unique to avoid coalescing for this tool
+            call_key = f"{call_key}::{uuid.uuid4()}"
         cached_outputs = _get_cached_by_key(call_key)
         if cached_outputs is not None:
             payload = {"op": "call_tool_res", "request_id": req_id, "outputs": cached_outputs}
@@ -276,6 +287,27 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
         if req_id in _inflight_reqs:
             await _safe_send(ws, {"op": "progress", "request_id": req_id, "name": name, "t": time.time(), "note": "duplicate request; still processing"})
             return
+
+        # Coalesce duplicate semantic calls across reconnects: if another call with the same call_key is in-flight,
+        # wait for it to finish and serve its cached outputs instead of launching a second provider call.
+        if call_key in _inflight_by_key:
+            try:
+                await asyncio.wait_for(_inflight_by_key[call_key].wait(), timeout=CALL_TIMEOUT)
+                cached_outputs = _get_cached_by_key(call_key)
+                if cached_outputs is not None:
+                    payload = {"op": "call_tool_res", "request_id": req_id, "outputs": cached_outputs}
+                    await _safe_send(ws, payload)
+                    _store_result(req_id, payload)
+                    return
+            except asyncio.TimeoutError:
+                await _safe_send(ws, {
+                    "op": "call_tool_res",
+                    "request_id": req_id,
+                    "error": {"code": "TIMEOUT", "message": f"duplicate call_key timed out after {CALL_TIMEOUT}s"}
+                })
+                return
+        else:
+            _inflight_by_key[call_key] = asyncio.Event()
 
 
         try:
@@ -287,14 +319,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 "error": {"code": "OVER_CAPACITY", "message": "Global concurrency limit reached; retry soon"}
             })
             return
-        # Send early ACK right after global capacity so clients extend their deadline immediately
-        await _safe_send(ws, {
-            "op": "call_tool_ack",
-            "request_id": req_id,
-            "accepted": True,
-            "timeout": CALL_TIMEOUT,
-            "name": name,
-        })
+        # Defer ACK until after provider+session capacity to ensure a single ACK per request
         # Also emit an immediate progress breadcrumb so clients see activity right away
         await _safe_send(ws, {
             "op": "progress",
@@ -317,14 +342,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 })
                 _global_sem.release()
                 return
-            # Send immediate ack after capacity acquisition so clients know the call is accepted
-            await _safe_send(ws, {
-                "op": "call_tool_ack",
-                "request_id": req_id,
-                "accepted": True,
-                "timeout": CALL_TIMEOUT,
-                "name": name,
-            })
+            # Defer ACK; will send once after session acquisition to guarantee a single ACK
 
         acquired_session = False
         try:
@@ -339,7 +357,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 })
                 return
             start = time.time()
-            # If no provider gate applies, still send ack after global/session acquisition
+            # Single ACK after global+provider+session acquisition
             await _safe_send(ws, {
                 "op": "call_tool_ack",
                 "request_id": req_id,
@@ -348,9 +366,39 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 "name": name,
             })
 
+            # Inject session and call_key into arguments for provider-side idempotency and context cache
+            try:
+                arguments = dict(arguments)
+                arguments.setdefault("_session_id", session_id)
+                arguments.setdefault("_call_key", call_key)
+            except Exception:
+                pass
+
             _inflight_reqs.add(req_id)
             try:
                 # Emit periodic progress while tool runs
+                # Compute a hard deadline for this tool invocation
+                tool_timeout = CALL_TIMEOUT
+                try:
+                    if name == "kimi_chat_with_tools":
+                        # Short timeout for normal chat; longer for web-enabled runs
+                        _kimitt = float(os.getenv("KIMI_CHAT_TOOL_TIMEOUT_SECS", "180"))
+                        _kimiweb = float(os.getenv("KIMI_CHAT_TOOL_TIMEOUT_WEB_SECS", "300"))
+                        # arguments is a dict we pass into the tool below; check websearch flag if present
+                        use_web = False
+                        try:
+                            use_web = bool(arguments.get("use_websearch"))
+                        except Exception:
+                            use_web = False
+                        if use_web:
+                            # For web-enabled calls, allow the higher web timeout explicitly
+                            tool_timeout = int(_kimiweb)
+                        else:
+                            tool_timeout = min(tool_timeout, int(_kimitt))
+                except Exception:
+                    pass
+                deadline = start + float(tool_timeout)
+
                 tool_task = asyncio.create_task(SERVER_HANDLE_CALL_TOOL(name, arguments))
                 while True:
                     try:
@@ -364,6 +412,24 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                             "name": name,
                             "t": time.time(),
                         })
+                        # Enforce hard deadline
+                        if time.time() >= deadline:
+                            try:
+                                tool_task.cancel()
+                            except Exception:
+                                pass
+                            await _safe_send(ws, {
+                                "op": "call_tool_res",
+                                "request_id": req_id,
+                                "error": {"code": "TIMEOUT", "message": f"call_tool exceeded {tool_timeout}s"}
+                            })
+                            try:
+                                if call_key in _inflight_by_key:
+                                    _inflight_by_key[call_key].set()
+                                    _inflight_by_key.pop(call_key, None)
+                            except Exception:
+                                pass
+                            return
                 latency = time.time() - start
                 try:
                     with _metrics_path.open("a", encoding="utf-8") as f:
@@ -384,6 +450,10 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 # Store by semantic call key to allow delivery across reconnects with new req_id
                 try:
                     _store_result_by_key(call_key, outputs_norm)
+                    # Signal any duplicate waiters on this call_key
+                    if call_key in _inflight_by_key:
+                        _inflight_by_key[call_key].set()
+                        _inflight_by_key.pop(call_key, None)
                 except Exception:
                     pass
             except asyncio.TimeoutError:
@@ -392,12 +462,24 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                     "request_id": req_id,
                     "error": {"code": "TIMEOUT", "message": f"call_tool exceeded {CALL_TIMEOUT}s"}
                 })
+                try:
+                    if call_key in _inflight_by_key:
+                        _inflight_by_key[call_key].set()
+                        _inflight_by_key.pop(call_key, None)
+                except Exception:
+                    pass
             except Exception as e:
                 await _safe_send(ws, {
                     "op": "call_tool_res",
                     "request_id": req_id,
                     "error": {"code": "EXEC_ERROR", "message": str(e)}
                 })
+                try:
+                    if call_key in _inflight_by_key:
+                        _inflight_by_key[call_key].set()
+                        _inflight_by_key.pop(call_key, None)
+                except Exception:
+                    pass
         finally:
             if acquired_session:
                 try:

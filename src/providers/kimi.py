@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import os
+import time
 from typing import Any, Optional
 
 from .base import ModelProvider, ModelCapabilities, ModelResponse, ProviderType, create_temperature_constraint
@@ -17,6 +18,11 @@ class KimiModelProvider(OpenAICompatibleProvider):
 
     # API configuration
     DEFAULT_BASE_URL = os.getenv("KIMI_API_URL", "https://api.moonshot.ai/v1")
+    # Simple in-process LRU for Kimi context tokens per session/tool/prefix
+    _cache_tokens: dict[str, tuple[str, float]] = {}
+    _cache_tokens_order: list[str] = []
+    _cache_tokens_ttl: float = float(os.getenv("KIMI_CACHE_TOKEN_TTL_SECS", "1800"))
+    _cache_tokens_max: int = int(os.getenv("KIMI_CACHE_TOKEN_LRU_MAX", "256"))
 
     # Model capabilities - extended thinking disabled by default for compliance
     SUPPORTED_MODELS: dict[str, ModelCapabilities] = {
@@ -182,6 +188,26 @@ class KimiModelProvider(OpenAICompatibleProvider):
 
     def __init__(self, api_key: str, base_url: Optional[str] = None, **kwargs):
         self.base_url = base_url or self.DEFAULT_BASE_URL
+        # Provider-specific timeout overrides via env
+        try:
+            rt = os.getenv("KIMI_READ_TIMEOUT_SECS", "").strip()
+            ct = os.getenv("KIMI_CONNECT_TIMEOUT_SECS", "").strip()
+            wt = os.getenv("KIMI_WRITE_TIMEOUT_SECS", "").strip()
+            pt = os.getenv("KIMI_POOL_TIMEOUT_SECS", "").strip()
+            if rt:
+                kwargs["read_timeout"] = float(rt)
+            if ct:
+                kwargs["connect_timeout"] = float(ct)
+            if wt:
+                kwargs["write_timeout"] = float(wt)
+            if pt:
+                kwargs["pool_timeout"] = float(pt)
+            # Provide a Kimi-specific sane default if nothing configured
+            if "read_timeout" not in kwargs and not rt:
+                # Default to 300s to avoid multi-minute hangs on web-enabled prompts
+                kwargs["read_timeout"] = float(os.getenv("KIMI_DEFAULT_READ_TIMEOUT_SECS", "300"))
+        except Exception:
+            pass
         super().__init__(api_key, base_url=self.base_url, **kwargs)
 
     def get_provider_type(self) -> ProviderType:
@@ -250,6 +276,54 @@ class KimiModelProvider(OpenAICompatibleProvider):
         except Exception:
             return max(1, len(text) // 4)
 
+    def _lru_key(self, session_id: str, tool_name: str, prefix_hash: str) -> str:
+        return f"{session_id}:{tool_name}:{prefix_hash}"
+
+    def save_cache_token(self, session_id: str, tool_name: str, prefix_hash: str, token: str) -> None:
+        try:
+            k = self._lru_key(session_id, tool_name, prefix_hash)
+            self._cache_tokens[k] = (token, time.time())
+            self._cache_tokens_order.append(k)
+            # Purge expired and over-capacity entries
+            self._purge_cache_tokens()
+            logger.info("Kimi cache token saved key=%s suffix=%s", k[-24:], token[-6:])
+        except Exception:
+            pass
+
+    def get_cache_token(self, session_id: str, tool_name: str, prefix_hash: str) -> Optional[str]:
+        try:
+            k = self._lru_key(session_id, tool_name, prefix_hash)
+            v = self._cache_tokens.get(k)
+            if not v:
+                return None
+            token, ts = v
+            if time.time() - ts > self._cache_tokens_ttl:
+                self._cache_tokens.pop(k, None)
+                return None
+            return token
+        except Exception:
+            return None
+
+    def _purge_cache_tokens(self) -> None:
+        try:
+            # TTL-based cleanup
+            now = time.time()
+            ttl = self._cache_tokens_ttl
+            self._cache_tokens = {k: v for k, v in self._cache_tokens.items() if now - v[1] <= ttl}
+            # LRU size limit
+            if len(self._cache_tokens) > self._cache_tokens_max:
+                # remove oldest keys
+                to_remove = len(self._cache_tokens) - self._cache_tokens_max
+                removed = 0
+                for k in list(self._cache_tokens_order):
+                    if k in self._cache_tokens:
+                        self._cache_tokens.pop(k, None)
+                        removed += 1
+                        if removed >= to_remove:
+                            break
+        except Exception:
+            pass
+
 
     def upload_file(self, file_path: str, purpose: str = "file-extract") -> str:
         """Upload a local file to Moonshot (Kimi) and return file_id.
@@ -288,6 +362,130 @@ class KimiModelProvider(OpenAICompatibleProvider):
         if not file_id:
             raise RuntimeError("Moonshot upload did not return a file id")
         return file_id
+    def _prefix_hash(self, messages: list[dict[str, Any]]) -> str:
+        try:
+            import hashlib
+            # Serialize a stable prefix of messages (roles + first 2k chars)
+            parts: list[str] = []
+            for m in messages[:6]:  # limit to first few messages
+                role = str(m.get("role", ""))
+                content = str(m.get("content", ""))[:2048]
+                parts.append(role + "\n" + content + "\n")
+            joined = "\n".join(parts)
+            return hashlib.sha256(joined.encode("utf-8", errors="ignore")).hexdigest()
+        except Exception:
+            return ""
+
+    def chat_completions_create(self, *, model: str, messages: list[dict[str, Any]], tools: Optional[list[Any]] = None, tool_choice: Optional[Any] = None, temperature: float = 0.6, **kwargs) -> dict:
+        """Wrapper that injects idempotency and Kimi context-cache headers, captures cache token, and returns normalized dict.
+        """
+        import logging as _log
+        session_id = kwargs.get("_session_id") or kwargs.get("session_id")
+        call_key = kwargs.get("_call_key") or kwargs.get("call_key")
+        tool_name = kwargs.get("_tool_name") or "kimi_chat_with_tools"
+        prefix_hash = self._prefix_hash(messages)
+
+        # Build extra headers
+        extra_headers = {"Msh-Trace-Mode": "on"}
+        if call_key:
+            extra_headers["Idempotency-Key"] = str(call_key)
+        # Attach cached context token if available
+        cache_token = None
+        if session_id and prefix_hash:
+            cache_token = self.get_cache_token(session_id, tool_name, prefix_hash)
+            if cache_token:
+                extra_headers["Msh-Context-Cache-Token"] = cache_token
+                _log.info("Kimi attach cache token suffix=%s", cache_token[-6:])
+
+        # Call with raw response to capture headers when possible
+        content_text = ""
+        raw_payload = None
+        try:
+            api = getattr(self.client.chat.completions, "with_raw_response", None)
+            if api:
+                raw = api.create(
+                    model=model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    temperature=temperature,
+                    stream=False,
+                    extra_headers=extra_headers,
+                )
+                # Parse JSON body
+                try:
+                    raw_payload = raw.parse()
+                except Exception:
+                    raw_payload = getattr(raw, "http_response", None)
+                # Extract headers
+                try:
+                    hdrs = getattr(raw, "http_response", None)
+                    hdrs = getattr(hdrs, "headers", None) or {}
+                    token_saved = None
+                    for k, v in hdrs.items():
+                        lk = (k.lower() if isinstance(k, str) else str(k).lower())
+                        if lk in ("msh-context-cache-token-saved", "msh_context_cache_token_saved"):
+                            token_saved = v
+                            break
+                    if token_saved and session_id and prefix_hash:
+                        self.save_cache_token(session_id, tool_name, prefix_hash, token_saved)
+                except Exception:
+                    pass
+                # Pull content
+                try:
+                    choice0 = (raw_payload.choices if hasattr(raw_payload, "choices") else raw_payload.get("choices"))[0]
+                    msg = getattr(choice0, "message", None) or choice0.get("message", {})
+                    content_text = getattr(msg, "content", None) or msg.get("content", "")
+                except Exception:
+                    content_text = ""
+            else:
+                # Fallback without raw headers support
+                resp = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    temperature=temperature,
+                    stream=False,
+                    extra_headers=extra_headers,
+                )
+                raw_payload = getattr(resp, "model_dump", lambda: resp)()
+                try:
+                    content_text = resp.choices[0].message.content
+                except Exception:
+                    content_text = (raw_payload.get("choices", [{}])[0].get("message", {}) or {}).get("content", "")
+        except Exception as e:
+            _log.error("Kimi chat call error: %s", e)
+            raise
+
+        # Normalize usage to a plain dict to ensure JSON-serializable output
+        _usage = None
+        try:
+            if hasattr(raw_payload, "usage"):
+                u = getattr(raw_payload, "usage")
+                if hasattr(u, "model_dump"):
+                    _usage = u.model_dump()
+                elif isinstance(u, dict):
+                    _usage = u
+                else:
+                    _usage = {
+                        "prompt_tokens": getattr(u, "prompt_tokens", None),
+                        "completion_tokens": getattr(u, "completion_tokens", None),
+                        "total_tokens": getattr(u, "total_tokens", None),
+                    }
+            elif isinstance(raw_payload, dict):
+                _usage = raw_payload.get("usage")
+        except Exception:
+            _usage = None
+
+        return {
+            "provider": "KIMI",
+            "model": model,
+            "content": content_text or "",
+            "tool_calls": None,
+            "usage": _usage,
+            "raw": getattr(raw_payload, "model_dump", lambda: raw_payload)() if hasattr(raw_payload, "model_dump") else raw_payload,
+        }
 
 
     def generate_content(

@@ -131,19 +131,23 @@ class KimiChatWithToolsTool(BaseTool):
             else:
                 tool_choice = None
 
-        # Fixed: Check for use_websearch (without $ prefix)
+        # Websearch tool injection via provider capabilities layer for consistency
         use_websearch = bool(arguments.get("use_websearch", False)) or (
             os.getenv("KIMI_ENABLE_INTERNET_TOOL", "false").strip().lower() == "true" or
             os.getenv("KIMI_ENABLE_INTERNET_SEARCH", "false").strip().lower() == "true"
         )
-
-        # Safety: do not inject web_search unless explicitly requested in arguments
-        # This prevents unexpected tool_calls when the caller didn't ask for web.
         if use_websearch and bool(arguments.get("use_websearch", False)):
-            web_search_tool = {"type": "builtin_function", "function": {"name": "$web_search"}}
-            tools = (tools or []) + [web_search_tool]
-            if tool_choice is None:
-                tool_choice = os.getenv("KIMI_DEFAULT_TOOL_CHOICE", "auto")
+            try:
+                from src.providers.capabilities import get_capabilities_for_provider
+                caps = get_capabilities_for_provider(ProviderType.KIMI)
+                ws = caps.get_websearch_tool_schema({"use_websearch": True})
+                if ws.tools:
+                    tools = (tools or []) + ws.tools
+                if tool_choice is None and ws.tool_choice is not None:
+                    tool_choice = ws.tool_choice
+            except Exception:
+                # If capabilities lookup fails, proceed without injecting tools
+                pass
 
         # Normalize messages into OpenAI-style list of {role, content}
         raw_msgs = arguments.get("messages")
@@ -176,89 +180,212 @@ class KimiChatWithToolsTool(BaseTool):
         model_used = requested_model
 
         if stream_flag:
-            # Handle streaming in a background thread; accumulate content
-            def _stream_call():
-                content_parts = []
-                raw_items = []
+            # For web-enabled flows, prefer the non-stream tool-call loop for reliability (handles tool_calls)
+            if bool(arguments.get("use_websearch", False)):
+                stream_flag = False
+            else:
+                # Handle streaming in a background thread; accumulate content (no tool_calls loop in stream mode)
+                def _stream_call():
+                    content_parts = []
+                    raw_items = []
+                    try:
+                        # Streaming: fall back to direct client but include extra headers for idempotency/cache when possible
+                        extra_headers = {}
+                        try:
+                            ck = arguments.get("_call_key") or arguments.get("call_key")
+                            if ck:
+                                extra_headers["Idempotency-Key"] = str(ck)
+                            ctok = getattr(prov, "get_cache_token", None)
+                            sid = arguments.get("_session_id")
+                            if ctok and sid:
+                                # Best-effort prefix hash similar to provider wrapper
+                                import hashlib
+                                parts = []
+                                for m in norm_msgs[:6]:
+                                    parts.append(str(m.get("role","")) + "\n" + str(m.get("content",""))[:2048])
+                                pf = hashlib.sha256("\n".join(parts).encode("utf-8", errors="ignore")).hexdigest()
+                                t = prov.get_cache_token(sid, "kimi_chat_with_tools", pf)
+                                if t:
+                                    extra_headers["Msh-Context-Cache-Token"] = t
+                        except Exception:
+                            pass
+                        for evt in prov.client.chat.completions.create(
+                            model=model_used,
+                            messages=norm_msgs,
+                            tools=tools,
+                            tool_choice=tool_choice,
+                            temperature=float(arguments.get("temperature", 0.6)),
+                            stream=True,
+                            extra_headers=extra_headers or None,
+                        ):
+                            raw_items.append(evt)
+                            try:
+                                ch = getattr(evt, "choices", None) or []
+                                if ch:
+                                    delta = getattr(ch[0], "delta", None)
+                                    if delta:
+                                        piece = getattr(delta, "content", None)
+                                        if piece:
+                                            content_parts.append(str(piece))
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        raise e
+                    return ("".join(content_parts), raw_items)
+
+                content_text, raw_stream = await _aio.to_thread(_stream_call)
+                normalized = {
+                    "provider": "KIMI",
+                    "model": model_used,
+                    "content": content_text,
+                    "tool_calls": None,
+                    "usage": None,
+                    "raw": {"stream": True, "items": [str(it) for it in raw_stream[:10]]},
+                }
+                return [TextContent(type="text", text=json.dumps(normalized, ensure_ascii=False))]
+        else:
+            # Non-streaming with minimal tool-call loop for function web_search
+            import copy
+            import urllib.parse, urllib.request
+
+            def _extract_tool_calls(raw_any: any) -> list[dict] | None:
                 try:
-                    for evt in prov.client.chat.completions.create(
+                    payload = raw_any
+                    if hasattr(payload, "model_dump"):
+                        payload = payload.model_dump()
+                    choices = payload.get("choices") or []
+                    if not choices:
+                        return None
+                    msg = choices[0].get("message") or {}
+                    tcs = msg.get("tool_calls")
+                    return tcs if tcs else None
+                except Exception:
+                    return None
+
+            def _run_web_search_backend(query: str) -> dict:
+                # Pluggable backend controlled by env SEARCH_BACKEND: duckduckgo | tavily | bing
+                backend = os.getenv("SEARCH_BACKEND", "duckduckgo").strip().lower()
+                try:
+                    if backend == "tavily":
+                        api_key = os.getenv("TAVILY_API_KEY", "").strip()
+                        if not api_key:
+                            raise RuntimeError("TAVILY_API_KEY not set")
+                        payload = json.dumps({"api_key": api_key, "query": query, "max_results": 5}).encode("utf-8")
+                        req = urllib.request.Request("https://api.tavily.com/search", data=payload, headers={"Content-Type": "application/json"})
+                        with urllib.request.urlopen(req, timeout=25) as resp:
+                            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                            results = []
+                            for it in (data.get("results") or [])[:5]:
+                                url = it.get("url") or it.get("link")
+                                if url:
+                                    results.append({"title": it.get("title") or it.get("snippet"), "url": url})
+                            return {"engine": "tavily", "query": query, "results": results}
+                    if backend == "bing":
+                        key = os.getenv("BING_SEARCH_API_KEY", "").strip()
+                        if not key:
+                            raise RuntimeError("BING_SEARCH_API_KEY not set")
+                        q = urllib.parse.urlencode({"q": query})
+                        req = urllib.request.Request(f"https://api.bing.microsoft.com/v7.0/search?{q}")
+                        req.add_header("Ocp-Apim-Subscription-Key", key)
+                        with urllib.request.urlopen(req, timeout=25) as resp:
+                            data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                            results = []
+                            for it in (data.get("webPages", {}).get("value", [])[:5]):
+                                if it.get("url"):
+                                    results.append({"title": it.get("name"), "url": it.get("url")})
+                            return {"engine": "bing", "query": query, "results": results}
+                    # Default: DuckDuckGo Instant Answer API
+                    q = urllib.parse.urlencode({"q": query, "format": "json", "no_html": 1, "skip_disambig": 1})
+                    url = f"https://api.duckduckgo.com/?{q}"
+                    with urllib.request.urlopen(url, timeout=20) as resp:
+                        data = json.loads(resp.read().decode("utf-8", errors="ignore"))
+                        results = []
+                        if data.get("AbstractURL"):
+                            results.append({"title": data.get("Heading"), "url": data.get("AbstractURL")})
+                        for item in (data.get("RelatedTopics") or [])[:5]:
+                            if isinstance(item, dict) and item.get("FirstURL"):
+                                results.append({"title": item.get("Text"), "url": item.get("FirstURL")})
+                        return {"engine": "duckduckgo", "query": query, "results": results[:5]}
+                except Exception as e:
+                    return {"engine": backend or "duckduckgo", "query": query, "error": str(e), "results": []}
+
+            messages_local = copy.deepcopy(norm_msgs)
+
+            for _ in range(3):  # limit tool loop depth
+                def _call():
+                    return prov.chat_completions_create(
                         model=model_used,
-                        messages=norm_msgs,
+                        messages=messages_local,
                         tools=tools,
                         tool_choice=tool_choice,
                         temperature=float(arguments.get("temperature", 0.6)),
-                        stream=True,
-                    ):
-                        raw_items.append(evt)
-                        try:
-                            ch = getattr(evt, "choices", None) or []
-                            if ch:
-                                delta = getattr(ch[0], "delta", None)
-                                if delta:
-                                    piece = getattr(delta, "content", None)
-                                    if piece:
-                                        content_parts.append(str(piece))
-                        except Exception:
-                            pass
-                except Exception as e:
-                    raise e
-                return ("".join(content_parts), raw_items)
+                        _session_id=arguments.get("_session_id"),
+                        _call_key=arguments.get("_call_key"),
+                        _tool_name=self.get_name(),
+                    )
+                # Apply per-call timeout to avoid long hangs on web-enabled prompts
+                # Choose timeout based on whether web search is enabled
+                try:
+                    if bool(arguments.get("use_websearch", False)):
+                        timeout_secs = float(os.getenv("KIMI_CHAT_TOOL_TIMEOUT_WEB_SECS", "300"))
+                    else:
+                        timeout_secs = float(os.getenv("KIMI_CHAT_TOOL_TIMEOUT_SECS", "180"))
+                except Exception:
+                    timeout_secs = 180.0
+                try:
+                    result = await _aio.wait_for(_aio.to_thread(_call), timeout=timeout_secs)
+                except _aio.TimeoutError:
+                    err = {"status": "execution_error", "error": f"Kimi chat timed out after {int(timeout_secs)}s"}
+                    return [TextContent(type="text", text=json.dumps(err, ensure_ascii=False))]
 
-            content_text, raw_stream = await _aio.to_thread(_stream_call)
-            normalized = {
-                "provider": "KIMI",
-                "model": model_used,
-                "content": content_text,
-                "tool_calls": None,
-                "usage": None,
-                "raw": {"stream": True, "items": [str(it) for it in raw_stream[:10]]},
-            }
-            return [TextContent(type="text", text=json.dumps(normalized, ensure_ascii=False))]
-        else:
-            # Non-streaming: offload blocking call to background thread
-            completion = await _aio.to_thread(
-                prov.client.chat.completions.create,
-                model=model_used,
-                messages=norm_msgs,
-                tools=tools,
-                tool_choice=tool_choice,
-                temperature=float(arguments.get("temperature", 0.6)),
-                stream=False,
-            )
+                # If no tool calls, return immediately
+                tcs = _extract_tool_calls(result.get("raw")) if isinstance(result, dict) else None
+                if not tcs:
+                    return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
-            from pydantic.json import pydantic_encoder
-            try:
-                raw_text = json.dumps(completion, default=pydantic_encoder, ensure_ascii=False)
-                raw_obj = json.loads(raw_text)
-            except Exception:
-                raw_text = str(completion)
-                raw_obj = {"_text": raw_text}
+                # Execute supported tools locally (function web_search)
+                tool_msgs = []
+                for tc in tcs:
+                    try:
+                        fn = tc.get("function") or {}
+                        fname = (fn.get("name") or "").strip()
+                        fargs_raw = fn.get("arguments")
+                        fargs = {}
+                        if isinstance(fargs_raw, str):
+                            try:
+                                fargs = json.loads(fargs_raw)
+                            except Exception:
+                                fargs = {"query": fargs_raw}
+                        elif isinstance(fargs_raw, dict):
+                            fargs = fargs_raw
 
-            if os.getenv("KIMI_CHAT_RETURN_RAW_ONLY", "false").strip().lower() == "true":
-                return [TextContent(type="text", text=raw_text)]
+                        if fname in ("web_search",):
+                            query = fargs.get("query") or ""
+                            res = _run_web_search_backend(query)
+                            tool_msgs.append({
+                                "role": "tool",
+                                "tool_call_id": str(tc.get("id") or tc.get("tool_call_id") or (tc.get("function",{}).get("id") if isinstance(tc.get("function"), dict) else "")) or "tc-0",
+                                "content": json.dumps(res, ensure_ascii=False),
+                            })
+                        else:
+                            # Unsupported tool - return partial with hint
+                            return [TextContent(type="text", text=json.dumps({
+                                "status": "tool_call_pending",
+                                "note": f"Unsupported tool {fname}. Supported: web_search.",
+                                "raw": result.get("raw"),
+                            }, ensure_ascii=False))]
+                    except Exception as e:
+                        return [TextContent(type="text", text=json.dumps({
+                            "status": "tool_call_error",
+                            "error": str(e),
+                            "raw": result.get("raw"),
+                        }, ensure_ascii=False))]
 
-            first_choice = None
-            try:
-                choices = raw_obj.get("choices") or []
-                if choices:
-                    first_choice = choices[0]
-            except Exception:
-                first_choice = None
+                # Append tool messages and continue the loop
+                messages_local.extend(tool_msgs)
 
-            content = None
-            tool_calls = None
-            if isinstance(first_choice, dict):
-                msg = first_choice.get("message") or {}
-                content = msg.get("content")
-                tool_calls = msg.get("tool_calls")
-
-            usage = raw_obj.get("usage")
-            normalized = {
-                "provider": "KIMI",
-                "model": model_used,
-                "content": content,
-                "tool_calls": tool_calls,
-                "usage": usage,
-                "raw": raw_obj,
-            }
-            return [TextContent(type="text", text=json.dumps(normalized, ensure_ascii=False))]
+            # If we exit loop due to depth, return last result
+            return [TextContent(type="text", text=json.dumps({
+                "status": "max_tool_depth_reached",
+                "raw": result if isinstance(result, dict) else {},
+            }, ensure_ascii=False))]

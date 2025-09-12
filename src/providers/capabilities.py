@@ -45,25 +45,28 @@ class KimiCapabilities(ProviderCapabilitiesBase):
     def get_websearch_tool_schema(self, config: Dict[str, Any]) -> WebSearchSchema:
         if not self.supports_websearch() or not config.get("use_websearch"):
             return WebSearchSchema(None, None)
-        # OpenAI-compatible function calling schema
-        tools = [
-            {
+        # Choose schema mode via env: function | builtin | both (default function)
+        mode = os.getenv("KIMI_WEBSEARCH_SCHEMA", "function").strip().lower()
+        tools: list[dict] = []
+        if mode in ("function", "both"):
+            tools.append({
                 "type": "function",
                 "function": {
                     "name": "web_search",
                     "description": "Internet search",
                     "parameters": {
                         "type": "object",
-                        "properties": {
-                            "query": {"type": "string"},
-                            # Consider adding locale/safety if provider supports it
-                        },
+                        "properties": {"query": {"type": "string"}},
                         "required": ["query"],
                     },
                 },
-            }
-        ]
-        return WebSearchSchema(tools=tools, tool_choice="auto")
+            })
+        if mode in ("builtin", "both"):
+            tools.append({
+                "type": "builtin_function",
+                "function": {"name": "$web_search"}
+            })
+        return WebSearchSchema(tools=tools or None, tool_choice="auto" if tools else None)
 
 
 class GLMCapabilities(ProviderCapabilitiesBase):

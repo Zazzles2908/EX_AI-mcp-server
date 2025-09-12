@@ -502,6 +502,27 @@ class OpenAICompatibleProvider(ModelProvider):
 
         # Completion params
         completion_params = {"model": resolved_model, "messages": messages}
+        # Inject provider-specific headers for idempotency and Kimi context caching if available via http client
+        try:
+            # Stable idempotency key derived from semantic call key if provided
+            call_key = kwargs.get("_call_key") or kwargs.get("call_key")
+            if call_key:
+                # Use OpenAI client default headers if accessible
+                hdrs = getattr(self.client, "_default_headers", None)
+                if hdrs is not None:
+                    hdrs["Idempotency-Key"] = str(call_key)
+            # Kimi context cache token reuse
+            cache_token = kwargs.get("_kimi_cache_token") or kwargs.get("kimi_cache_token")
+            if cache_token:
+                hdrs = getattr(self.client, "_default_headers", None)
+                if hdrs is not None:
+                    hdrs["Msh-Context-Cache-Token"] = str(cache_token)
+            # Optional tracing for observability
+            hdrs = getattr(self.client, "_default_headers", None)
+            if hdrs is not None:
+                hdrs.setdefault("Msh-Trace-Mode", "on")
+        except Exception:
+            pass
 
         # Log sanitized payload
         try:
@@ -564,7 +585,32 @@ class OpenAICompatibleProvider(ModelProvider):
         for attempt in range(max_retries):
             actual_attempts = attempt + 1
             try:
-                response = self.client.chat.completions.create(**completion_params)
+                # Attach idempotency per attempt as well via request_options if SDK supports it
+                req_opts = {}
+                try:
+                    call_key = kwargs.get("_call_key") or kwargs.get("call_key")
+                    if call_key:
+                        req_opts["idempotency_key"] = str(call_key)
+                except Exception:
+                    pass
+                response = self.client.chat.completions.create(**completion_params, **req_opts)
+                # Capture Kimi context-cache token from response headers if exposed via client
+                try:
+                    # Some SDKs expose last response headers; fall back to provider-specific hooks otherwise
+                    headers = getattr(response, "response_headers", None) or getattr(self.client, "_last_response_headers", None)
+                    token = None
+                    if headers:
+                        for k, v in headers.items():
+                            lk = k.lower()
+                            if lk in ("msh-context-cache-token-saved", "msh_context_cache_token_saved"):
+                                token = v
+                                break
+                    if token:
+                        # Save on the provider for reuse in this process; upper layers may also persist per session
+                        setattr(self, "_kimi_cache_token", token)
+                        logging.info("Kimi context cache saved token suffix=%s", str(token)[-6:])
+                except Exception:
+                    pass
 
                 # Streaming
                 if completion_params.get("stream") is True:

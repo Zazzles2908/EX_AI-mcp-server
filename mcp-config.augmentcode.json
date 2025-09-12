@@ -24,7 +24,8 @@
       "cwd": "C:/Project/EX-AI-MCP-Server",
       "env": {
         "ENV_FILE": "C:/Project/EX-AI-MCP-Server/.env",
-        "EXAI_SHIM_RPC_TIMEOUT": "30",
+        "EXAI_SHIM_RPC_TIMEOUT": "120",
+        "EXAI_SHIM_ACK_GRACE_SECS": "120",
         "LOG_LEVEL": "DEBUG",
         "PYTHONIOENCODING": "utf-8",
         "PYTHONUNBUFFERED": "1"

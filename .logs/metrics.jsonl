@@ -154,3 +154,11 @@
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 4841, "output_tokens": 977, "t": 1757585264.6003723}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2660, "output_tokens": 677, "t": 1757585600.1675158}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 5318, "output_tokens": 829, "t": 1757585648.0004365}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "b69f6193696760d72db7a48ea85277dc7afb7501f3004d5985701f8eb1f14731", "t": 1757588023.7332048}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "65455492b425a35af6d2c3082ce9e9fac53c098b066cf44328931ee421434269", "t": 1757588024.590248}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "19bdab8c85495e09e6465f47a37a0add31077266af5444ff164017823415d76a", "t": 1757588024.975714}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "4babfc7613f7b919175ba324cdee80e925f4c282eaf40c92bc10c5c6fc831d3e", "t": 1757588025.3315375}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "dd61686c097f7e869b4cfb1d24254052333217b79364f42fd1b17388cb7b7bff", "t": 1757588025.553942}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "3301047d6fdd835b1005996a813f3fba5176adfb05ce05cd308d5dfe1fd70ea6", "t": 1757588025.9931152}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "611f70cb95a04e057a42b60a37b31c1b5c59de659667e3a1246fac9236de4df7", "t": 1757588026.243597}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2328, "output_tokens": 257, "t": 1757627603.8039951}
