@@ -18,6 +18,9 @@ from tools.shared.base_models import ToolRequest
 class ActivityRequest(ToolRequest):
     lines: Optional[int] = 200
     filter: Optional[str] = None  # regex
+    since: Optional[str] = None   # ISO8601 datetime (flag-gated)
+    until: Optional[str] = None   # ISO8601 datetime (flag-gated)
+    structured: Optional[bool] = None  # JSONL output (flag-gated)
 
 
 class ActivityTool(SimpleTool):
@@ -55,6 +58,20 @@ class ActivityTool(SimpleTool):
                 "enum": ["auto", "activity", "server"],
                 "default": "auto",
                 "description": "Which log to read: activity (mcp_activity.log), server (mcp_server.log), or auto (prefer activity then server)",
+            },
+            # Optional fields (flag-gated): we expose schema but behavior gated by flags
+            "since": {
+                "type": "string",
+                "description": "Optional ISO8601 datetime to filter lines since this time (flag-gated)",
+            },
+            "until": {
+                "type": "string",
+                "description": "Optional ISO8601 datetime to filter lines until this time (flag-gated)",
+            },
+            "structured": {
+                "type": "boolean",
+                "description": "Optional JSONL output mode (flag-gated)",
+                "default": False,
             },
         }
 
@@ -177,6 +194,38 @@ class ActivityTool(SimpleTool):
         except Exception as e:
             return [TextContent(type="text", text=f"[activity:error] Failed to read log: {e}")]
 
+        # Optional time window filtering (flag-gated)
+        try:
+            from config import ACTIVITY_SINCE_UNTIL_ENABLED
+        except Exception:
+            ACTIVITY_SINCE_UNTIL_ENABLED = False
+        if ACTIVITY_SINCE_UNTIL_ENABLED and (req.since or req.until):
+            from datetime import datetime
+            def parse_dt(s: str) -> Optional[datetime]:
+                try:
+                    return datetime.fromisoformat(s)
+                except Exception:
+                    return None
+            since_dt = parse_dt(req.since) if req.since else None
+            until_dt = parse_dt(req.until) if req.until else None
+            filtered: list[str] = []
+            for ln in tail:
+                # Heuristic: assume log lines start with an ISO-ish timestamp or contain one; include if within window
+                ts = None
+                m = re.search(r"(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})", ln)
+                if m:
+                    ts = parse_dt(m.group(1).replace(" ", "T"))
+                if ts is None:
+                    # If we cannot parse a timestamp, keep the line to avoid accidental data loss
+                    filtered.append(ln)
+                    continue
+                if since_dt and ts < since_dt:
+                    continue
+                if until_dt and ts > until_dt:
+                    continue
+                filtered.append(ln)
+            tail = filtered
+
         # Apply optional regex filter
         if req.filter:
             try:
@@ -184,6 +233,21 @@ class ActivityTool(SimpleTool):
                 tail = [ln for ln in tail if pattern.search(ln)]
             except Exception as e:
                 return [TextContent(type="text", text=f"[activity:error] Invalid filter regex: {e}")]
+
+        # Optional structured output (flag-gated)
+        try:
+            from config import ACTIVITY_STRUCTURED_OUTPUT_ENABLED
+        except Exception:
+            ACTIVITY_STRUCTURED_OUTPUT_ENABLED = False
+        structured = bool(req.structured) if req.structured is not None else False
+        if ACTIVITY_STRUCTURED_OUTPUT_ENABLED and structured:
+            # Convert each line to a JSON record with minimal fields
+            import json
+            records = []
+            for ln in tail[-n:]:
+                records.append(json.dumps({"line": ln.rstrip("\n")}, ensure_ascii=False))
+            jsonl = "\n".join(records)
+            return [TextContent(type="text", text=jsonl)]
 
         # Return as plain text block with minimal formatting
         content = "".join(tail[-n:])

@@ -58,8 +58,6 @@ class Console:
     def flush() -> None:
         sys.stdout.flush()
 
-    return batches
-
 
 def ensure_archive_dirs(categories: List[str]) -> None:
     for c in categories:
@@ -71,7 +69,7 @@ def dry_run_grouped(batches: List[Batch], verbose: bool = False) -> None:
     total_present = 0
     total_missing = 0
     for b in batches:
-        print(f"\n== Batch: {b.name} (category: {b.category}) ==")
+        Console.section(f"Batch: {b.name} (category: {b.category})")
         present: List[str] = []
         missing: List[str] = []
         for rel in b.files:
@@ -83,28 +81,34 @@ def dry_run_grouped(batches: List[Batch], verbose: bool = False) -> None:
         total_missing += len(missing)
         print(f"  Present: {len(present)} | Missing: {len(missing)}")
         if verbose and present:
-            print("  Files to archive:")
+            Console.status("Files to archive:")
             for rel in present:
                 print(f"   - {rel}")
         if verbose and missing:
-            print("  Missing (skipped):")
+            Console.status("Missing (skipped):")
             for rel in missing:
                 print(f"   - {rel}")
-    print(f"\nSummary: {total_present} present, {total_missing} missing across {len(batches)} batch(es)")
+    Console.hr("=")
+    print(f"Summary: {total_present} present, {total_missing} missing across {len(batches)} batch(es)")
+    Console.hr("=")
 
 
 def archive_files(batch: Batch) -> List[Path]:
     archived: List[Path] = []
+    total = len(batch.files)
+    idx = 0
     for rel in batch.files:
+        idx += 1
         src = ROOT / rel
         if not src.exists():
-            print(f"[WARN] Skipping missing: {rel}")
+            Console.status(f"[SKIP {idx}/{total}] Missing: {rel}")
             continue
         dest = ARCHIVE / batch.category / rel.replace(os.sep, "__")
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dest)
         archived.append(src)
-        print(f"[ARCHIVE] {rel} -> {dest.relative_to(ROOT)}")
+        Console.status(f"[ARCHIVE {idx}/{total}] {rel} -> {dest.relative_to(ROOT)}")
+        Console.flush()
     return archived
 
 

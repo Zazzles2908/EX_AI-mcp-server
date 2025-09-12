@@ -76,6 +76,10 @@ CONTEXT_MANAGER_ENABLED = os.getenv("CONTEXT_MANAGER_ENABLED", "false").strip().
 RESILIENT_ERRORS_ENABLED = os.getenv("RESILIENT_ERRORS_ENABLED", "false").strip().lower() == "true"
 SECURE_INPUTS_ENFORCED = os.getenv("SECURE_INPUTS_ENFORCED", "false").strip().lower() == "true"
 
+# Activity tool feature flags (default OFF)
+ACTIVITY_SINCE_UNTIL_ENABLED = os.getenv("ACTIVITY_SINCE_UNTIL_ENABLED", "false").strip().lower() == "true"
+ACTIVITY_STRUCTURED_OUTPUT_ENABLED = os.getenv("ACTIVITY_STRUCTURED_OUTPUT_ENABLED", "false").strip().lower() == "true"
+
 # Consensus timeout and rate limiting settings
 DEFAULT_CONSENSUS_TIMEOUT = 120.0  # 2 minutes per model
 DEFAULT_CONSENSUS_MAX_INSTANCES_PER_COMBINATION = 2

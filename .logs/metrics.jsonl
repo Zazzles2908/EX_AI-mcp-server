@@ -198,3 +198,4 @@
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2502, "output_tokens": 335, "t": 1757714515.3066766}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2512, "output_tokens": 396, "t": 1757714726.973522}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2599, "output_tokens": 1855, "t": 1757714882.501905}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "3218c5cde47662f93c1aa8bfa7f5dcc56396d257309d59affd31e05518b2907d", "t": 1757717741.6598237}
