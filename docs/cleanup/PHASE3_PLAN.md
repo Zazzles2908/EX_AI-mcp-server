@@ -148,3 +148,10 @@ Notes:
 - Manifest retains entries for consensus_legacy and other batches; use:
   - `python scripts/cleanup_phase3.py restore --batch consensus_legacy`
 - After restore validation, re-archive or delete restored samples to maintain consistency
+
+
+## Monitoring logs note (Windows)
+
+- Some logs may be immediately re-created by the running server/shim after deletion (e.g., mcp_activity.log, mcp_server.log, ws_daemon.health.json, ws_shim.log)
+- To fully remove: stop the processes, then re-run `python scripts/cleanup_phase3.py archive --delete`
+- The script now summarizes deletions with a "Deferred(Locked)" count to flag these cases

@@ -112,13 +112,41 @@ def archive_files(batch: Batch) -> List[Path]:
     return archived
 
 
-def delete_files(paths: List[Path]) -> None:
+def delete_files(paths: List[Path]) -> Dict[str, List[Path]]:
+    deleted: List[Path] = []
+    deferred_locked: List[Path] = []
+    failed: List[Path] = []
     for p in paths:
         try:
             p.unlink()
             print(f"[DELETE] {p.relative_to(ROOT)}")
+            deleted.append(p)
         except Exception as e:
-            print(f"[ERROR] Failed to delete {p}: {e}")
+            msg = str(e)
+            # Windows lock error heuristic (WinError 32)
+            if "WinError 32" in msg:
+                print(f"[DEFERRED] Locked, will require process stop: {p.relative_to(ROOT)}")
+                deferred_locked.append(p)
+            else:
+                print(f"[ERROR] Failed to delete {p}: {e}")
+                failed.append(p)
+    # Report any still-present paths
+    still_present: List[Path] = []
+    for p in paths:
+        try:
+            if p.exists():
+                still_present.append(p)
+        except Exception:
+            continue
+    # Summary
+    print("-")
+    print(f"[SUMMARY] Deleted={len(deleted)} Deferred(Locked)={len(deferred_locked)} Failed={len(failed)} StillPresent={len(still_present)}")
+    return {
+        "deleted": deleted,
+        "deferred_locked": deferred_locked,
+        "failed": failed,
+        "still_present": still_present,
+    }
 
 
 def restore_batch(batch_name: str) -> None:
@@ -169,7 +197,10 @@ def main() -> None:
         for b in batches:
             archived_all.extend(archive_files(b))
         if args.do_delete:
-            delete_files(archived_all)
+            summary = delete_files(archived_all)
+            # Explicit callout for common Windows lock case
+            if summary.get("deferred_locked"):
+                print("[HINT] Some files are locked by running processes (e.g., server/shim). Stop them and re-run: archive --delete")
         return
 
     if args.mode == "delete":
