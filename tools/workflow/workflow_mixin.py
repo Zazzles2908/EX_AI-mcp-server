@@ -976,6 +976,22 @@ class BaseWorkflowMixin(ABC):
                 "context_optimization": "Files referenced but not embedded to preserve Claude's context window",
             }
 
+        # Provide a standard next_call skeleton for clients and tests expecting it.
+        # Only include continuation_id inside arguments when provided (omit when None).
+        try:
+            next_args = {
+                "step": getattr(request, "step", None),
+                "step_number": getattr(request, "step_number", None),
+                "total_steps": getattr(request, "total_steps", None),
+                "next_step_required": getattr(request, "next_step_required", None),
+            }
+            if continuation_id:
+                next_args["continuation_id"] = continuation_id
+            response_data["next_call"] = {"tool": self.get_name(), "arguments": next_args}
+        except Exception:
+            # Non-fatal; keep legacy behavior if request lacks attributes
+            pass
+
         return response_data
 
     def should_skip_expert_analysis(self, request, consolidated_findings) -> bool:

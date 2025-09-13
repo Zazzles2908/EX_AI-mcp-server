@@ -195,10 +195,7 @@ class ActivityTool(SimpleTool):
             return [TextContent(type="text", text=f"[activity:error] Failed to read log: {e}")]
 
         # Optional time window filtering (flag-gated)
-        try:
-            from config import ACTIVITY_SINCE_UNTIL_ENABLED
-        except Exception:
-            ACTIVITY_SINCE_UNTIL_ENABLED = False
+        ACTIVITY_SINCE_UNTIL_ENABLED = os.getenv("ACTIVITY_SINCE_UNTIL_ENABLED", "false").strip().lower() == "true"
         if ACTIVITY_SINCE_UNTIL_ENABLED and (req.since or req.until):
             from datetime import datetime
             def parse_dt(s: str) -> Optional[datetime]:
@@ -210,13 +207,14 @@ class ActivityTool(SimpleTool):
             until_dt = parse_dt(req.until) if req.until else None
             filtered: list[str] = []
             for ln in tail:
-                # Heuristic: assume log lines start with an ISO-ish timestamp or contain one; include if within window
+                # Heuristic: parse timestamp at start of line if present; if absent, default to keep line
                 ts = None
-                m = re.search(r"(\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2})", ln)
+                # Prefer space-separated 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DDTHH:MM:SS'
+                m = re.match(r"^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})", ln)
                 if m:
-                    ts = parse_dt(m.group(1).replace(" ", "T"))
+                    ts = parse_dt(f"{m.group(1)}T{m.group(2)}")
                 if ts is None:
-                    # If we cannot parse a timestamp, keep the line to avoid accidental data loss
+                    # Keep non-timestamped lines to avoid accidental loss
                     filtered.append(ln)
                     continue
                 if since_dt and ts < since_dt:
@@ -235,10 +233,8 @@ class ActivityTool(SimpleTool):
                 return [TextContent(type="text", text=f"[activity:error] Invalid filter regex: {e}")]
 
         # Optional structured output (flag-gated)
-        try:
-            from config import ACTIVITY_STRUCTURED_OUTPUT_ENABLED
-        except Exception:
-            ACTIVITY_STRUCTURED_OUTPUT_ENABLED = False
+        import os
+        ACTIVITY_STRUCTURED_OUTPUT_ENABLED = os.getenv("ACTIVITY_STRUCTURED_OUTPUT_ENABLED", "false").strip().lower() == "true"
         structured = bool(req.structured) if req.structured is not None else False
         if ACTIVITY_STRUCTURED_OUTPUT_ENABLED and structured:
             # Convert each line to a JSON record with minimal fields
