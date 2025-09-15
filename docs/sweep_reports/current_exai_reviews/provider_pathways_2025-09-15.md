@@ -6,6 +6,14 @@ MCP Call Summary — Result: YES | Provider: GLM | Model: glm-4.5-flash | Cost: 
 Practical mapping of Kimi and GLM models to everyday workflows with safe defaults, cost control, and clear fallbacks.
 
 ## Model mapping (use-cases)
+
+### Quick reference table
+| Use-case | GLM | Kimi |
+|---|---|---|
+| Fast/flash | glm-4.5-flash | k2-turbo (or k2-turbo-preview) |
+| Quality/deep | glm-4.5 | kimi-k2 (latest stable tag, e.g., k2-0905) |
+| Long-context | Prefer chunking; bump only if essential | moonshot-v1-32k/128k; kimi-thinking-preview (experimental) |
+
 - Fast/flash (default)
   - GLM: glm-4.5-flash (default for most tools)
   - Kimi: k2-turbo / k2-turbo-preview (when explicitly selecting Kimi fast tier)
