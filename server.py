@@ -932,6 +932,9 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         pass
     import uuid as _uuid
     req_id = str(_uuid.uuid4())
+    import time as _time
+    _start_ts = _time.time()
+
     """
     Handle incoming tool execution requests from MCP clients.
 
@@ -1670,7 +1673,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                     logger.info(f"[AUTO-CONTINUE] Executing next step for {name}: step_number={next_args.get('step_number')}")
                     result = await tool.execute(next_args)
                     # Normalize result shape for auto-continued step
-                    
+
                     if isinstance(result, _TextContent):
                         result = [result]
                     elif not isinstance(result, list):
@@ -1688,7 +1691,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         try:
             progress_log = get_progress_log()
             if isinstance(result, list) and result:
-                
+
                 primary = result[-1]
                 progress_block = None
                 if progress_log:
@@ -1712,7 +1715,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                             primary.text = _json.dumps(data, ensure_ascii=False)
                 # Always include a visible activity summary block for UI dropdowns (unconditional)
                 try:
-                    
+
                     tail = f"=== PROGRESS ===\n{progress_block}\n=== END PROGRESS ===" if progress_block else "(no progress captured)"
 
                     # Optional compact summary line at top (off by default to avoid replacing first block)
@@ -1764,6 +1767,64 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                     pass
 
         except Exception:
+            pass
+
+        # Prepend MCP Call Summary for all tools (server-side), unless already present
+        try:
+            from mcp.types import TextContent as _Txt
+            import json as _json
+            # Determine duration label
+            _dur_s = 0.0
+            try:
+                _dur_s = max(0.0, (_time.time() - _start_ts))
+            except Exception:
+                _dur_s = 0.0
+            if _dur_s < 2.0:
+                _dur_label = "fast"
+            elif _dur_s < 8.0:
+                _dur_label = "moderate"
+            else:
+                _dur_label = "slow"
+            # Determine provider/model
+            _prov_name = "unknown"
+            try:
+                _prov_name = getattr(provider.get_provider_type(), "value", str(provider)) if 'provider' in locals() and provider else "unknown"
+            except Exception:
+                _prov_name = "unknown"
+            _model = arguments.get("_resolved_model_name") or arguments.get("model") or "unknown"
+            # Determine success from last JSON block if possible
+            _ok = "YES"
+            try:
+                _primary = result[-1] if (isinstance(result, list) and result) else None
+                _text = _primary.text if (isinstance(_primary, _Txt) and _primary.type == "text") else None
+                if _text:
+                    try:
+                        _data = _json.loads(_text)
+                        _status = str(_data.get("status", "")).lower()
+                        if _status.startswith(("error", "invalid", "execution_error", "validation_error")):
+                            _ok = "NO"
+                        elif _status in ("pause_for_input", "pause_for_confirmation"):
+                            _ok = "YES"
+                        elif _status:
+                            _ok = "YES" if _status.startswith(("success", "continuation")) else _ok
+                    except Exception:
+                        # Non-JSON primary; keep YES if tool executed
+                        pass
+            except Exception:
+                _ok = "NO" if not result else "YES"
+            # Cost heuristic
+            _low = ("flash" in (_model or "").lower()) or ("mini" in (_model or "").lower())
+            _high = any(s in (_model or "").lower() for s in ["thinking", "opus", "pro", "qwen2.5-72b", "deepseek-r1"])
+            _cost = "low" if _low else ("high" if _high else "medium")
+            # Only insert if first block is not already a summary
+            _first = result[0] if (isinstance(result, list) and result) else None
+            _first_text = _first.text if (isinstance(_first, _Txt) and _first.type == "text") else ""
+            if not (_first_text or "").startswith("MCP Call Summary —"):
+                _summary = f"MCP Call Summary — Result: {_ok} | Provider: {_prov_name} | Model: {_model} | Cost: {_cost} | Duration: {_dur_label}"
+                result.insert(0, _Txt(type="text", text=_summary))
+        except Exception as _e:
+            logger.debug(f"[SUMMARY] insertion skipped/failed: {_e}")
+
             pass
 
         # Log completion to activity file

@@ -341,3 +341,5 @@
 {"event": "provider_error", "provider": "glm", "model": "glm-4.5-air", "error_type": "call_failed", "message": "Network issue contacting provider. Check connectivity and retry.", "t": 1757917857.370907}
 {"event": "provider_error", "provider": "glm", "model": "glm-4.5-flash", "error_type": "call_failed", "message": "Network issue contacting provider. Check connectivity and retry.", "t": 1757917953.1362128}
 {"event": "token_usage", "input_tokens": 4228, "output_tokens": 1024, "provider": "kimi", "model": "kimi-k2-turbo-preview", "t": 1757917964.0358486}
+{"event": "token_usage", "input_tokens": 2041, "output_tokens": 5, "provider": "glm", "model": "glm-4.5-air", "t": 1757918795.838047}
+{"event": "token_usage", "input_tokens": 2041, "output_tokens": 5, "provider": "glm", "model": "glm-4.5-air", "t": 1757918796.4741902}
