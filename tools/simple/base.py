@@ -290,6 +290,10 @@ class SimpleTool(BaseTool):
 
         logger = logging.getLogger(f"tools.{self.get_name()}")
 
+        # Start timing for MCP Call Summary
+        import time as _time
+        _start_ts = _time.time()
+
         try:
             # Store arguments for access by helper methods
             self._current_arguments = arguments
@@ -623,11 +627,9 @@ class SimpleTool(BaseTool):
                 try:
                     if 'tool_call_metadata' in locals() and tool_call_metadata:
                         tool_output.metadata.setdefault('tool_call_events', tool_call_metadata)
-                    # Ensure dropdown visibility even when no provider-native tools were used
                     else:
                         import os as ___os, time as ___time
                         if ___os.getenv("EX_ALWAYS_TOOLCALL_METADATA", "false").strip().lower() == "true":
-                            # Synthesize a minimal event so UIs show a dropdown
                             use_web_flag = False
                             try:
                                 use_web_flag = self.get_request_use_websearch(request)
@@ -646,7 +648,27 @@ class SimpleTool(BaseTool):
                             tool_output.metadata.setdefault('tool_call_events', synthetic)
                 except Exception:
                     pass
-            return [TextContent(type="text", text=tool_output.model_dump_json())]
+
+            # Build MCP Call Summary one-liner (provider/model/cost/duration)
+            try:
+                _prov_name = getattr(provider.get_provider_type(), "value", str(provider)) if provider else "unknown"
+                _model = getattr(self, "_current_model_name", None) or "unknown"
+                _dur_s = max(0.0, (_time.time() - _start_ts))
+                _dur_label = "fast" if _dur_s < 2.0 else ("moderate" if _dur_s < 8.0 else "slow")
+                _m = _model.lower()
+                if any(k in _m for k in ("flash", "air", "0711", "turbo")):
+                    _cost = "low"
+                elif any(k in _m for k in ("thinking",)):
+                    _cost = "high"
+                elif any(k in _m for k in ("0905", "glm-4.5")):
+                    _cost = "medium"
+                else:
+                    _cost = "low"
+                _ok = "YES" if (tool_output.status or "").startswith(("success", "continuation")) else "NO"
+                _summary = f"MCP Call Summary — Result: {_ok} | Provider: {_prov_name} | Model: {_model} | Cost: {_cost} | Duration: {_dur_label}"
+                return [TextContent(type="text", text=_summary), TextContent(type="text", text=tool_output.model_dump_json())]
+            except Exception:
+                return [TextContent(type="text", text=tool_output.model_dump_json())]
 
         except Exception as e:
             # Special handling for MCP size check errors
