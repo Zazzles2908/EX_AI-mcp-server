@@ -137,8 +137,9 @@ class ToolRegistry:
         else:
             active = set(TOOL_MAP.keys())
 
-        # Ensure utilities are always on
-        active.update({"version", "listmodels"})
+        # Ensure utilities are always on unless STRICT_LEAN is enabled
+        if os.getenv("STRICT_LEAN", "false").strip().lower() != "true":
+            active.update({"version", "listmodels"})
 
         # Remove disabled
         active = {t for t in active if t not in disabled}
