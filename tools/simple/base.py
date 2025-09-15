@@ -324,7 +324,15 @@ class SimpleTool(BaseTool):
                     content=path_error,
                     content_type="text",
                 )
-                return [TextContent(type="text", text=error_output.model_dump_json())]
+                try:
+                    _prov_name = "unknown"
+                    _model = getattr(self, "_current_model_name", None) or "unknown"
+                    _dur_s = max(0.0, (_time.time() - _start_ts))
+                    _dur_label = "fast" if _dur_s < 2.0 else ("moderate" if _dur_s < 8.0 else "slow")
+                    _summary = f"MCP Call Summary — Result: NO | Provider: {_prov_name} | Model: {_model} | Cost: low | Duration: {_dur_label}"
+                    return [TextContent(type="text", text=_summary), TextContent(type="text", text=error_output.model_dump_json())]
+                except Exception:
+                    return [TextContent(type="text", text=error_output.model_dump_json())]
 
             # Handle model resolution with ModelRouter (honor explicit non-auto)
             model_name = self.get_request_model_name(request)
@@ -592,7 +600,15 @@ class SimpleTool(BaseTool):
                     content="Model returned no response (None). Please retry or switch model; check provider logs for details.",
                     content_type="text",
                 )
-                return [TextContent(type="text", text=tool_output.model_dump_json())]
+                try:
+                    _prov_name = getattr(provider.get_provider_type(), "value", str(provider)) if provider else "unknown"
+                    _model = getattr(self, "_current_model_name", None) or "unknown"
+                    _dur_s = max(0.0, (_time.time() - _start_ts))
+                    _dur_label = "fast" if _dur_s < 2.0 else ("moderate" if _dur_s < 8.0 else "slow")
+                    _summary = f"MCP Call Summary — Result: NO | Provider: {_prov_name} | Model: {_model} | Cost: low | Duration: {_dur_label}"
+                    return [TextContent(type="text", text=_summary), TextContent(type="text", text=tool_output.model_dump_json())]
+                except Exception:
+                    return [TextContent(type="text", text=tool_output.model_dump_json())]
 
             # Process the model's response
             if getattr(model_response, "content", None):
@@ -620,6 +636,15 @@ class SimpleTool(BaseTool):
                     content=f"Response blocked or incomplete. Finish reason: {finish_reason}",
                     content_type="text",
                 )
+                try:
+                    _prov_name = getattr(provider.get_provider_type(), "value", str(provider)) if provider else "unknown"
+                    _model = getattr(self, "_current_model_name", None) or "unknown"
+                    _dur_s = max(0.0, (_time.time() - _start_ts))
+                    _dur_label = "fast" if _dur_s < 2.0 else ("moderate" if _dur_s < 8.0 else "slow")
+                    _summary = f"MCP Call Summary — Result: NO | Provider: {_prov_name} | Model: {_model} | Cost: low | Duration: {_dur_label}"
+                    # fallthrough to common return below
+                except Exception:
+                    pass
 
             # Return the tool output as TextContent
             # Attach tool_call_events metadata for UI dropdown if available
@@ -675,7 +700,16 @@ class SimpleTool(BaseTool):
             if str(e).startswith("MCP_SIZE_CHECK:"):
                 # Extract the JSON content after the prefix
                 json_content = str(e)[len("MCP_SIZE_CHECK:") :]
-                return [TextContent(type="text", text=json_content)]
+                try:
+                    _prov_name = getattr(getattr(self, "_model_context", None), "provider", None)
+                    _prov_name = getattr(getattr(_prov_name, "get_provider_type", lambda: None)(), "value", "unknown") if _prov_name else "unknown"
+                    _model = getattr(self, "_current_model_name", None) or "unknown"
+                    _dur_s = max(0.0, (_time.time() - _start_ts))
+                    _dur_label = "fast" if _dur_s < 2.0 else ("moderate" if _dur_s < 8.0 else "slow")
+                    _summary = f"MCP Call Summary — Result: NO | Provider: {_prov_name} | Model: {_model} | Cost: low | Duration: {_dur_label}"
+                    return [TextContent(type="text", text=_summary), TextContent(type="text", text=json_content)]
+                except Exception:
+                    return [TextContent(type="text", text=json_content)]
 
             # Use structured error handling for better user experience
             try:
@@ -690,7 +724,16 @@ class SimpleTool(BaseTool):
                     content=f"Error in {self.get_name()}: {str(e)}",
                     content_type="text",
                 )
-                return [TextContent(type="text", text=error_output.model_dump_json())]
+                try:
+                    _prov_name = getattr(getattr(self, "_model_context", None), "provider", None)
+                    _prov_name = getattr(getattr(_prov_name, "get_provider_type", lambda: None)(), "value", "unknown") if _prov_name else "unknown"
+                    _model = getattr(self, "_current_model_name", None) or "unknown"
+                    _dur_s = max(0.0, (_time.time() - _start_ts))
+                    _dur_label = "fast" if _dur_s < 2.0 else ("moderate" if _dur_s < 8.0 else "slow")
+                    _summary = f"MCP Call Summary — Result: NO | Provider: {_prov_name} | Model: {_model} | Cost: low | Duration: {_dur_label}"
+                    return [TextContent(type="text", text=_summary), TextContent(type="text", text=error_output.model_dump_json())]
+                except Exception:
+                    return [TextContent(type="text", text=error_output.model_dump_json())]
 
     def _parse_response(self, raw_text: str, request, model_info: Optional[dict] = None):
         """

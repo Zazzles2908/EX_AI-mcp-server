@@ -335,3 +335,9 @@
 {"event": "token_usage", "input_tokens": 2320, "output_tokens": 1436, "provider": "glm", "model": "glm-4.5-air", "t": 1757915580.3104224}
 {"event": "token_usage", "input_tokens": 2042, "output_tokens": 5, "provider": "glm", "model": "glm-4.5-air", "t": 1757915659.2617362}
 {"event": "token_usage", "input_tokens": 2544, "output_tokens": 324, "provider": "glm", "model": "glm-4.5-air", "t": 1757917249.0913558}
+{"event": "token_usage", "input_tokens": 2084, "output_tokens": 81, "provider": "glm", "model": "glm-4.5-air", "t": 1757917524.4701407}
+{"event": "token_usage", "input_tokens": 2074, "output_tokens": 306, "provider": "glm", "model": "glm-4.5-air", "t": 1757917529.5359879}
+{"event": "token_usage", "input_tokens": 2589, "output_tokens": 470, "provider": "glm", "model": "glm-4.5-air", "t": 1757917729.624786}
+{"event": "provider_error", "provider": "glm", "model": "glm-4.5-air", "error_type": "call_failed", "message": "Network issue contacting provider. Check connectivity and retry.", "t": 1757917857.370907}
+{"event": "provider_error", "provider": "glm", "model": "glm-4.5-flash", "error_type": "call_failed", "message": "Network issue contacting provider. Check connectivity and retry.", "t": 1757917953.1362128}
+{"event": "token_usage", "input_tokens": 4228, "output_tokens": 1024, "provider": "kimi", "model": "kimi-k2-turbo-preview", "t": 1757917964.0358486}
