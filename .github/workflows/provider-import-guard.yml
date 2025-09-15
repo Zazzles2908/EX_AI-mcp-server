@@ -1,0 +1,50 @@
+name: Provider Import Guard (Option-B)
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main", "develop" ]
+
+jobs:
+  guard-legacy-provider-imports:
+    name: Fail on legacy providers.* imports (except allowed shims)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan for legacy provider imports
+        shell: bash
+        run: |
+          set -e
+          echo "Scanning for legacy provider imports (from providers.* / import providers)"
+          echo "Allowed exceptions: providers/__init__.py, providers/registry_srcshim.py, providers/zhipu_optional.py, src/providers/**, tests/**, scripts/**"
+
+          # Search patterns
+          BAD1=$(git grep -n -E '(^|[^_])from providers\.' -- \
+            ':!providers/__init__.py' \
+            ':!providers/registry_srcshim.py' \
+            ':!providers/zhipu_optional.py' \
+            ':!src/providers/**' \
+            ':!tests/**' \
+            ':!scripts/**' || true)
+
+          BAD2=$(git grep -n -E '(^|[^_])import providers(\.|$)' -- \
+            ':!providers/__init__.py' \
+            ':!providers/registry_srcshim.py' \
+            ':!providers/zhipu_optional.py' \
+            ':!src/providers/**' \
+            ':!tests/**' \
+            ':!scripts/**' || true)
+
+          if [ -n "$BAD1" ] || [ -n "$BAD2" ]; then
+            echo "Found legacy imports:" >&2
+            [ -n "$BAD1" ] && echo "$BAD1" >&2
+            [ -n "$BAD2" ] && echo "$BAD2" >&2
+            echo "\n❌ CI guard failed: replace 'providers.*' imports with 'src.providers.*' (or use approved shims)." >&2
+            exit 1
+          fi
+
+          echo "✅ No legacy provider imports detected outside allowed exceptions."
+

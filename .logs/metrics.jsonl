@@ -327,3 +327,9 @@
 {"timestamp": 1757895009.9955018, "event_type": "context_performance", "operation": "optimize_file_content", "tool": "context_integration", "processing_time_ms": 0, "compression_ratio": 1.0, "cache_hit": false, "content_type": "file", "strategies_count": 1, "error": false}
 {"event": "token_usage", "input_tokens": 5765, "output_tokens": 573, "provider": "glm", "model": "glm-4.5-air", "t": 1757895018.7442071}
 {"event": "token_usage", "input_tokens": 2045, "output_tokens": 5, "provider": "glm", "model": "glm-4.5-air", "t": 1757895030.2893274}
+{"event": "provider_error", "provider": "glm", "model": "glm-4.5-air", "error_type": "call_failed", "message": "Network issue contacting provider. Check connectivity and retry.", "t": 1757900019.599968}
+{"event": "provider_error", "provider": "glm", "model": "glm-4.5-flash", "error_type": "call_failed", "message": "Provider rate limit hit. Please retry shortly or reduce request size.", "t": 1757900085.9112546}
+{"event": "token_usage", "input_tokens": 2264, "output_tokens": 1024, "provider": "kimi", "model": "kimi-k2-turbo-preview", "t": 1757900095.643688}
+{"event": "token_usage", "input_tokens": 2376, "output_tokens": 18, "provider": "glm", "model": "glm-4.5-air", "t": 1757900249.1153994}
+{"event": "token_usage", "input_tokens": 2360, "output_tokens": 216, "provider": "glm", "model": "glm-4.5-air", "t": 1757901385.0288925}
+{"event": "token_usage", "input_tokens": 2320, "output_tokens": 1436, "provider": "glm", "model": "glm-4.5-air", "t": 1757915580.3104224}

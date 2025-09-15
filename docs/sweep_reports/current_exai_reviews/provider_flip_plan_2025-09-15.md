@@ -2,6 +2,11 @@ MCP Call Summary — Result: YES | Provider: GLM | Model: glm-4.5-flash | Cost: 
 
 # Provider Consolidation Plan (Option‑B)
 
+Status
+- CI guard added: .github/workflows/provider-import-guard.yml (blocks legacy `providers.*` imports outside approved shims/tests/scripts)
+- Next: complete pre‑flip audit and switch the single import site to src.providers.registry
+
+
 Goal
 - Migrate all provider imports to src.providers.registry with a single flip point and CI guard, keeping behavior intact.
 
