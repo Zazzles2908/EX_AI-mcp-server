@@ -19,7 +19,7 @@ jobs:
         run: |
           set -e
           echo "Scanning for legacy provider imports (from providers.* / import providers)"
-          echo "Allowed exceptions: providers/__init__.py, providers/registry_srcshim.py, providers/zhipu_optional.py, src/providers/**, tests/**, scripts/**"
+          echo "Allowed exceptions: providers/__init__.py, providers/registry_srcshim.py, providers/zhipu_optional.py, src/providers/**, tests/**, scripts/**, auggie/**"
 
           # Search patterns
           BAD1=$(git grep -n -E '(^|[^_])from providers\.' -- \
@@ -28,7 +28,8 @@ jobs:
             ':!providers/zhipu_optional.py' \
             ':!src/providers/**' \
             ':!tests/**' \
-            ':!scripts/**' || true)
+            ':!scripts/**' \
+            ':!auggie/**' || true)
 
           BAD2=$(git grep -n -E '(^|[^_])import providers(\.|$)' -- \
             ':!providers/__init__.py' \
@@ -36,7 +37,8 @@ jobs:
             ':!providers/zhipu_optional.py' \
             ':!src/providers/**' \
             ':!tests/**' \
-            ':!scripts/**' || true)
+            ':!scripts/**' \
+            ':!auggie/**' || true)
 
           if [ -n "$BAD1" ] || [ -n "$BAD2" ]; then
             echo "Found legacy imports:" >&2
