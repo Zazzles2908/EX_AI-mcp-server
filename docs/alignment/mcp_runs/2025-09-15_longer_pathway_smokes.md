@@ -35,3 +35,9 @@ Note: The success-path responses now include the new one-liner summary. Uniform 
 - No change to the JSON ToolOutput contract or metadata structure
 - Summary is an additional first TextContent only; downstream parsers remain unaffected
 
+
+## Git/push outcome
+- Switched remote to SSH → required passphrase; not suitable for unattended pushes
+- Switched remote back to HTTPS; temporarily cleared GH_TOKEN/GITHUB_TOKEN in-session and pushed successfully
+- Recommendation: Remove invalid GH_TOKEN/GITHUB_TOKEN from your global environment, or keep using HTTPS with keyring-backed PAT
+
