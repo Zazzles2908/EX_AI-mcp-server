@@ -269,6 +269,22 @@ try:
     except Exception as e:
         logging.warning(f"Could not set up activity log file: {e}")
 
+
+        # Dedicated ERROR+ rotating file handler for centralized error tracking
+        try:
+            errors_handler = RotatingFileHandler(
+                log_dir / "mcp_errors.log",
+                maxBytes=10 * 1024 * 1024,  # 10MB max per file
+                backupCount=5,
+                encoding="utf-8",
+            )
+            errors_handler.setLevel(logging.ERROR)
+            errors_handler.setFormatter(LocalTimeFormatter(log_format))
+            logging.getLogger().addHandler(errors_handler)
+            logging.info("Centralized error log enabled at: %s", str(log_dir / "mcp_errors.log"))
+        except Exception as e:
+            logging.warning(f"Could not set up centralized error log: {e}")
+
     # Log setup info directly to root logger since logger isn't defined yet
     logging.info(f"Logging to: {log_dir / 'mcp_server.log'}")
     logging.info(f"Process PID: {os.getpid()}")
