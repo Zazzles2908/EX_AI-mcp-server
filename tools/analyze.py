@@ -17,9 +17,9 @@ Key features:
 """
 
 import logging
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from pydantic import Field, model_validator
+from pydantic import Field, model_validator, ConfigDict
 
 if TYPE_CHECKING:
     from tools.models import ToolModelCategory
@@ -103,6 +103,8 @@ ANALYZE_WORKFLOW_FIELD_DESCRIPTIONS = {
 
 
 class AnalyzeWorkflowRequest(WorkflowRequest):
+    # Allow extra fields to be tolerant of client-side schema drift
+    model_config = ConfigDict(extra='allow')
     """Request model for analyze workflow investigation steps"""
 
     # Required fields for each investigation step
@@ -139,10 +141,10 @@ class AnalyzeWorkflowRequest(WorkflowRequest):
 
     # Analyze-specific fields (only used in step 1 to initialize)
     # Note: Use relevant_files field instead of files for consistency across workflow tools
-    analysis_type: Optional[Literal["architecture", "performance", "security", "quality", "general"]] = Field(
+    analysis_type: Optional[str] = Field(
         "general", description=ANALYZE_WORKFLOW_FIELD_DESCRIPTIONS["analysis_type"]
     )
-    output_format: Optional[Literal["summary", "detailed", "actionable"]] = Field(
+    output_format: Optional[str] = Field(
         "detailed", description=ANALYZE_WORKFLOW_FIELD_DESCRIPTIONS["output_format"]
     )
 
@@ -203,6 +205,24 @@ class AnalyzeWorkflowRequest(WorkflowRequest):
             self.analysis_type = mapping[syn]
         elif syn not in {"architecture", "performance", "security", "quality", "general", ""}:
             self.analysis_type = "general"
+        return self
+
+    @model_validator(mode="after")
+    def normalize_output_format(self):
+        # Normalize output_format synonyms; default to 'detailed'
+        syn = (self.output_format or "").strip().lower()
+        mapping = {
+            "short": "summary",
+            "brief": "summary",
+            "long": "detailed",
+            "full": "detailed",
+            "actions": "actionable",
+            "action": "actionable",
+        }
+        if syn in mapping:
+            self.output_format = mapping[syn]
+        elif syn not in {"summary", "detailed", "actionable", ""}:
+            self.output_format = "detailed"
         return self
 
 
@@ -330,15 +350,13 @@ class AnalyzeTool(WorkflowTool):
             },
             "analysis_type": {
                 "type": "string",
-                "enum": ["architecture", "performance", "security", "quality", "general"],
-                "default": "general",
                 "description": ANALYZE_WORKFLOW_FIELD_DESCRIPTIONS["analysis_type"],
+                "default": "general",
             },
             "output_format": {
                 "type": "string",
-                "enum": ["summary", "detailed", "actionable"],
-                "default": "detailed",
                 "description": ANALYZE_WORKFLOW_FIELD_DESCRIPTIONS["output_format"],
+                "default": "detailed",
             },
         }
 

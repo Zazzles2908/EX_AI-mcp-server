@@ -23,7 +23,8 @@ def _restore_env(monkeypatch):
     yield
 
 
-def test_activity_legacy_behavior(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_activity_legacy_behavior(tmp_path, monkeypatch):
     # Write sample log
     log = write_log(tmp_path, [
         "2025-09-10 08:00:00 INFO Start",
@@ -33,13 +34,14 @@ def test_activity_legacy_behavior(tmp_path, monkeypatch):
     monkeypatch.setenv("EX_ACTIVITY_LOG_PATH", str(log))
 
     tool = ActivityTool()
-    out = asyncio.get_event_loop().run_until_complete(tool.execute({"source": "activity", "lines": 10}))
+    out = await tool.execute({"source": "activity", "lines": 10})
     # When flags are OFF, since/until and structured are ignored; returns plain text
     assert out and hasattr(out[0], "text")
     assert "TOOL_CALL" in out[0].text
 
 
-def test_activity_since_until_filter(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_activity_since_until_filter(tmp_path, monkeypatch):
     # Enable flag
     monkeypatch.setenv("ACTIVITY_SINCE_UNTIL_ENABLED", "true")
 
@@ -51,16 +53,15 @@ def test_activity_since_until_filter(tmp_path, monkeypatch):
     monkeypatch.setenv("EX_ACTIVITY_LOG_PATH", str(log))
 
     tool = ActivityTool()
-    out = asyncio.get_event_loop().run_until_complete(
-        tool.execute({"source": "activity", "lines": 10, "since": "2025-09-10T08:05:00", "until": "2025-09-10T08:15:00"})
-    )
+    out = await tool.execute({"source": "activity", "lines": 10, "since": "2025-09-10T08:05:00", "until": "2025-09-10T08:15:00"})
     assert out and hasattr(out[0], "text")
     txt = out[0].text
     assert "08:10:00" in txt
     assert "08:00:00" not in txt and "08:20:00" not in txt
 
 
-def test_activity_structured_output(tmp_path, monkeypatch):
+@pytest.mark.asyncio
+async def test_activity_structured_output(tmp_path, monkeypatch):
     # Enable flag
     monkeypatch.setenv("ACTIVITY_STRUCTURED_OUTPUT_ENABLED", "true")
 
@@ -71,9 +72,7 @@ def test_activity_structured_output(tmp_path, monkeypatch):
     monkeypatch.setenv("EX_ACTIVITY_LOG_PATH", str(log))
 
     tool = ActivityTool()
-    out = asyncio.get_event_loop().run_until_complete(
-        tool.execute({"source": "activity", "lines": 10, "structured": True})
-    )
+    out = await tool.execute({"source": "activity", "lines": 10, "structured": True})
     assert out and hasattr(out[0], "text")
     # JSONL with two lines
     jsonl = out[0].text.strip().splitlines()

@@ -38,15 +38,25 @@ def _write_jsonl(obj: dict) -> None:
         pass
 
 
-def record_token_usage(provider: str, model: str, input_tokens: int = 0, output_tokens: int = 0) -> None:
+def record_token_usage(provider: str | None = None, model: str | None = None, input_tokens: int = 0, output_tokens: int = 0, tool_name: str | None = None) -> None:
+    """Best-effort token usage log.
+
+    Backward compatible with older call sites expecting (provider, model, input_tokens, output_tokens),
+    and newer call sites passing keywords (model=..., input_tokens=..., output_tokens=..., tool_name=...).
+    """
     try:
-        _write_jsonl({
+        obj = {
             "event": "token_usage",
-            "provider": provider,
-            "model": model,
             "input_tokens": int(input_tokens),
             "output_tokens": int(output_tokens),
-        })
+        }
+        if provider:
+            obj["provider"] = provider
+        if model:
+            obj["model"] = model
+        if tool_name:
+            obj["tool"] = tool_name
+        _write_jsonl(obj)
     except Exception:
         pass
 

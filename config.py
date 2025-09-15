@@ -74,7 +74,7 @@ AGENTIC_ENGINE_ENABLED = os.getenv("AGENTIC_ENGINE_ENABLED", "false").strip().lo
 ROUTER_ENABLED = os.getenv("ROUTER_ENABLED", "false").strip().lower() == "true"
 CONTEXT_MANAGER_ENABLED = os.getenv("CONTEXT_MANAGER_ENABLED", "false").strip().lower() == "true"
 RESILIENT_ERRORS_ENABLED = os.getenv("RESILIENT_ERRORS_ENABLED", "false").strip().lower() == "true"
-SECURE_INPUTS_ENFORCED = os.getenv("SECURE_INPUTS_ENFORCED", "false").strip().lower() == "true"
+SECURE_INPUTS_ENFORCED = os.getenv("SECURE_INPUTS_ENFORCED", "true").strip().lower() == "true"
 
 # Activity tool feature flags (default OFF)
 ACTIVITY_SINCE_UNTIL_ENABLED = os.getenv("ACTIVITY_SINCE_UNTIL_ENABLED", "false").strip().lower() == "true"

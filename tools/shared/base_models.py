@@ -13,7 +13,7 @@ Key Models:
 import logging
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +84,8 @@ WORKFLOW_FIELD_DESCRIPTIONS = {
 
 
 class ToolRequest(BaseModel):
+    # Allow extra fields from clients to avoid hard failures when schemas drift
+    model_config = ConfigDict(extra='allow')
     """
     Base request model for all Zen MCP tools.
 

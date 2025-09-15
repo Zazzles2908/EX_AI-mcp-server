@@ -10,7 +10,7 @@
         "ENV_FILE": "C:/Project/EX-AI-MCP-Server/.env",
         "EXAI_WS_HOST": "127.0.0.1",
         "EXAI_WS_PORT": "8765",
-        "EXAI_SHIM_RPC_TIMEOUT": "30",
+        "EXAI_SHIM_RPC_TIMEOUT": "300",
         "PYTHONIOENCODING": "utf-8",
         "PYTHONUNBUFFERED": "1",
         "LOG_LEVEL": "INFO"

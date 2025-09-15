@@ -1,3 +1,9 @@
+> DEPRECATED (Phase A): Legacy guidance kept for history. Prefer the canonical docs:
+> - docs/alignment/phaseA/* (current plan and supersessions)
+> - docs/architecture/* (canonical design)
+> See docs/alignment/phaseA/SCRIPTS_SUPERSESSION.md for preferred entry points.
+
+
 # Auggie CLI Cleanup Prompt: EX_AI MCP Server Post-Agentic Upgrade
 
 ## Overview

@@ -16,7 +16,7 @@ class StatusTool(BaseTool):
         return "status"
 
     def get_description(self) -> str:
-        return "Concise EXAI status: providers, models, and recent issues; friendly next steps. Alias for health/provider_capabilities."
+        return "Status + Hub: providers/models snapshot and (optional) compact menu/hub with suggested routes."
 
     def get_input_schema(self) -> Dict[str, Any]:
         return {
@@ -26,17 +26,25 @@ class StatusTool(BaseTool):
                 "include_tools": {"type": "boolean", "default": False},
                 "doctor": {"type": "boolean", "default": False},
                 "probe": {"type": "boolean", "default": False},
+                "menu": {"type": "boolean", "default": False, "description": "Return compact menu items (<=12) for MCP dropdown."},
+                "hub": {"type": "boolean", "default": False, "description": "Return StatusHub menu and suggested routes."},
+                "action": {"type": "string", "description": "Optional hub action to plan (e.g., analyze, review, debug, plan, test, refactor, secure, trace, precommit, logs, status, consensus, chat)"},
+                "goal": {"type": "string", "description": "Optional user goal/notes for routing"},
             },
         }
 
     def get_system_prompt(self) -> str:
-        return "Return a compact JSON status with next steps."
+        return "Return a compact JSON status with next steps, or compact menu when menu=true, or a hub menu when hub=true."
 
     def get_request_model(self):
         return ToolRequest
 
     def requires_model(self) -> bool:
         return False
+
+    async def prepare_prompt(self, request) -> str:
+        """Not used since status tool doesn't call AI models - returns system status directly"""
+        return ""
 
     async def execute(self, arguments: Dict[str, Any]) -> list[TextContent]:
         tail = int(arguments.get("tail_lines", 30))
@@ -74,6 +82,67 @@ class StatusTool(BaseTool):
             "last_errors": [ln for ln in h_json.get("metrics_tail", []) if "error" in ln.lower()][-3:],
             "next_steps": guidance,
         }
+
+        # Optional: return compact menu for MCP dropdown
+        if bool(arguments.get("menu", False)):
+            try:
+                ui_profile = os.getenv("UI_PROFILE", "").strip().lower()
+                if ui_profile == "compact":
+                    from tools.registry import COMPACT_VISIBLE_TOOLS
+                    out["menu"] = sorted(COMPACT_VISIBLE_TOOLS)
+                else:
+                    try:
+                        from server import TOOLS as _TOOLS  # type: ignore
+                        out["menu"] = sorted(list(_TOOLS.keys()))
+                    except Exception:
+                        out["menu"] = sorted(pc_json.get("tools", []))
+            except Exception as e:
+                out["menu_error"] = f"Failed to build menu: {e}"
+
+        # Optional: return Hub menu and suggestions
+        if bool(arguments.get("hub", False)):
+            try:
+                try:
+                    from tools.registry import COMPACT_VISIBLE_TOOLS
+                    base_menu = sorted(COMPACT_VISIBLE_TOOLS)
+                except Exception:
+                    base_menu = [
+                        "chat","analyze","codereview","debug","refactor","testgen",
+                        "planner","secaudit","precommit","tracer","consensus","status",
+                    ]
+                out["hub_menu"] = base_menu
+                act = (arguments.get("action") or "").strip().lower()
+                goal = (arguments.get("goal") or "").strip()
+                suggestions = []
+                # Direct action mapping when present
+                if act:
+                    route = act if act in base_menu else ("status" if act not in base_menu else act)
+                    suggestions.append({"action": act, "route": route, "goal": goal})
+                else:
+                    g = goal.lower()
+                    if any(k in g for k in ["consensus","compare","stances","debate"]):
+                        suggestions.append({"action":"consensus","route":"consensus","why":"multi-model intent detected"})
+                    elif any(k in g for k in ["debug","error","traceback","crash"]):
+                        suggestions.append({"action":"debug","route":"debug","why":"debug intent detected"})
+                    elif any(k in g for k in ["review","diff","pr "]):
+                        suggestions.append({"action":"codereview","route":"codereview","why":"review intent detected"})
+                    elif any(k in g for k in ["plan","tasks","roadmap","milestone","break down"]):
+                        suggestions.append({"action":"planner","route":"planner","why":"planning intent detected"})
+                    elif any(k in g for k in ["test","pytest","unit test","coverage"]):
+                        suggestions.append({"action":"testgen","route":"testgen","why":"testing intent detected"})
+                    elif any(k in g for k in ["refactor","simplify","cleanup","rename","extract"]):
+                        suggestions.append({"action":"refactor","route":"refactor","why":"refactor intent detected"})
+                    elif any(k in g for k in ["secure","security","owasp","vulnerability","xss","csrf","sql injection"]):
+                        suggestions.append({"action":"secaudit","route":"secaudit","why":"security intent detected"})
+                    elif any(k in g for k in ["trace","call graph","dependencies","execution path"]):
+                        suggestions.append({"action":"tracer","route":"tracer","why":"tracing intent detected"})
+                    elif any(k in g for k in ["precommit","pre-commit","lint","ruff","format","quality gates"]):
+                        suggestions.append({"action":"precommit","route":"precommit","why":"precommit intent detected"})
+                    else:
+                        suggestions.append({"action":"analyze","route":"analyze","why":"default analysis route"})
+                out["hub_suggestions"] = suggestions
+            except Exception as e:
+                out["hub_error"] = f"Failed to build hub: {e}"
 
         # Optional doctor mode: perform fast probes and add guidance
         if bool(arguments.get("doctor", False)):

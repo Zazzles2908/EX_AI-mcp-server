@@ -152,6 +152,7 @@ async def run_consensus(tool_name: str, kimi_json: dict, glm_json: dict) -> dict
         "step_number": 1,
         "total_steps": len(models),
         "next_step_required": True,
+        "findings": f"Assessment analysis for {tool_name} tool based on Kimi and GLM evaluations.",
         "models": models,
     }
     out = await run_tool_async(consensus, args)

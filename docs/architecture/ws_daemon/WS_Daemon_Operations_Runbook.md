@@ -116,7 +116,7 @@ If you need comments, put them on their own line starting with `#`.
 
 ## 3) Environment variables (shim)
 - EXAI_WS_HOST/PORT/TOKEN must match daemon
-- EXAI_SHIM_RPC_TIMEOUT: 30 (seconds; shim waits for a tool response before retrying once)
+- EXAI_SHIM_RPC_TIMEOUT: 300 (seconds; shim waits for a tool response - must match server CALL_TIMEOUT for workflow tools)
 
 ## 4) Start/Stop
 - Start daemon (from repo root):
@@ -148,7 +148,7 @@ If you need comments, put them on their own line starting with `#`.
         "EXAI_WS_HOST": "127.0.0.1",
         "EXAI_WS_PORT": "8765",
         "EXAI_WS_TOKEN": "<optional-token>",
-        "EXAI_SHIM_RPC_TIMEOUT": "30"
+        "EXAI_SHIM_RPC_TIMEOUT": "300"
       }
     }
   }

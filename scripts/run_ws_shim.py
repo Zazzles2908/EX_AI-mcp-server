@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# DEPRECATED (Phase A): Prefer scripts/ws_start.ps1 -Shim for shim usage.
+# This script remains for historical compatibility.
+
 import asyncio
 import json
 import logging
@@ -157,7 +160,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
             "arguments": arguments or {},
         }))
         # Read until matching request_id with timeout
-        timeout_s = float(os.getenv("EXAI_SHIM_RPC_TIMEOUT", "30"))
+        timeout_s = float(os.getenv("EXAI_SHIM_RPC_TIMEOUT", "300"))
         ack_grace = float(os.getenv("EXAI_SHIM_ACK_GRACE_SECS", "30"))
         deadline = asyncio.get_running_loop().time() + timeout_s
         while True:

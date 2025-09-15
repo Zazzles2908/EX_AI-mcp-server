@@ -1,13 +1,20 @@
 {
-  "servers": {
+  "mcpServers": {
     "exai-mcp": {
+      "type": "stdio",
+      "trust": true,
       "command": "C:/Project/EX-AI-MCP-Server/.venv/Scripts/python.exe",
-      "args": ["scripts/run_ws_shim.py"],
+      "args": ["-u", "C:/Project/EX-AI-MCP-Server/scripts/run_ws_shim.py"],
       "cwd": "C:/Project/EX-AI-MCP-Server",
       "env": {
+        "ENV_FILE": "C:/Project/EX-AI-MCP-Server/.env",
         "EXAI_WS_HOST": "127.0.0.1",
         "EXAI_WS_PORT": "8765",
-        "EXAI_SHIM_RPC_TIMEOUT": "30"
+        "EXAI_SHIM_RPC_TIMEOUT": "300",
+        "EXAI_SHIM_ACK_GRACE_SECS": "120",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUNBUFFERED": "1",
+        "LOG_LEVEL": "INFO"
       }
     }
   }

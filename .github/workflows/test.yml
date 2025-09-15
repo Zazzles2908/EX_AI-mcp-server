@@ -8,11 +8,12 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        os: [ubuntu-latest, windows-latest, macos-latest]
 
     steps:
     - uses: actions/checkout@v4
@@ -27,16 +28,27 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
+        pip install coverage pytest-cov
     
-    - name: Run unit tests
+    - name: Run unit tests with coverage
       run: |
         # Run only unit tests (exclude simulation tests and integration tests)
         # Integration tests require local-llama which isn't available in CI
-        python -m pytest tests/ -v --ignore=simulator_tests/ -m "not integration"
+        python -m pytest tests/ -v --ignore=simulator_tests/ -m "not integration" \
+          --cov=. --cov-report=xml --cov-report=html --cov-report=term-missing
       env:
         # Ensure no API key is accidentally used in CI
         GEMINI_API_KEY: ""
         OPENAI_API_KEY: ""
+        GLM_API_KEY: ""
+        KIMI_API_KEY: ""
+
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
 
   lint:
     runs-on: ubuntu-latest

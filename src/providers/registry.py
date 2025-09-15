@@ -270,6 +270,8 @@ class ModelProviderRegistry:
             # Initialize instance dictionaries on first creation
             cls._instance._providers = {}
             cls._instance._initialized_providers = {}
+            # Cache: model_name -> ProviderType | None (explicit negative caching)
+            cls._instance._model_provider_cache = {}
             logging.debug(f"REGISTRY: Created instance {cls._instance}")
         return cls._instance
 
@@ -373,26 +375,34 @@ class ModelProviderRegistry:
 
     @classmethod
     def get_provider_for_model(cls, model_name: str) -> Optional[ModelProvider]:
-        """Get provider instance for a specific model name.
+        """Get provider instance for a specific model name with memoization.
 
         Provider priority order:
-        1. Native APIs (GOOGLE, OPENAI) - Most direct and efficient
+        1. Native APIs (KIMI, GLM) - Most direct and efficient in this project
         2. CUSTOM - For local/private models with specific endpoints
         3. OPENROUTER - Catch-all for cloud models via unified API
-
-        Args:
-            model_name: Name of the model (e.g., "gemini-2.5-flash", "gpt5")
-
-        Returns:
-            ModelProvider instance that supports this model
         """
         logging.debug(f"get_provider_for_model called with model_name='{model_name}'")
 
-        # Check providers in priority order
+        # Normalize cache key
         instance = cls()
+        cache_key = (model_name or "").strip().lower()
+        cache = getattr(instance, "_model_provider_cache", None)
+        if isinstance(cache, dict) and cache_key in cache:
+            cached_ptype = cache[cache_key]
+            if cached_ptype is None:
+                logging.debug(f"Cache negative-hit for model {model_name}")
+                return None
+            prov = cls.get_provider(cached_ptype)
+            if prov:
+                logging.debug(f"Cache hit for model {model_name}: {cached_ptype}")
+                return prov
+            # Fall through if provider instance could not be created
+
         logging.debug(f"Registry instance: {instance}")
         logging.debug(f"Available providers in registry: {list(instance._providers.keys())}")
 
+        found_ptype: ProviderType | None = None
         for provider_type in cls.PROVIDER_PRIORITY_ORDER:
             if provider_type in instance._providers:
                 logging.debug(f"Found {provider_type} in registry")
@@ -408,14 +418,20 @@ class ModelProviderRegistry:
                 provider = cls.get_provider(provider_type)
                 if provider and provider.validate_model_name(model_name):
                     logging.debug(f"{provider_type} validates model {model_name}")
-                    return provider
+                    found_ptype = provider_type
+                    break
                 else:
                     logging.debug(f"{provider_type} does not validate model {model_name}")
             else:
                 logging.debug(f"{provider_type} not found in registry")
 
-        logging.debug(f"No provider found for model {model_name}")
-        return None
+        # Update cache and return
+        if isinstance(cache, dict):
+            cache[cache_key] = found_ptype  # store None for negative cache
+        if found_ptype is None:
+            logging.debug(f"No provider found for model {model_name}")
+            return None
+        return cls.get_provider(found_ptype)
 
     @classmethod
     def get_available_providers(cls) -> list[ProviderType]:

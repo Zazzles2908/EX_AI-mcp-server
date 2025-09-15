@@ -357,7 +357,9 @@ class KimiModelProvider(OpenAICompatibleProvider):
         except Exception:
             # Never block upload if env is malformed; rely on provider errors
             pass
-        result = self.client.files.create(file=p, purpose=purpose)
+        # OpenAI-compatible clients typically expect a file-like object for uploads
+        with open(p, "rb") as f:
+            result = self.client.files.create(file=f, purpose=purpose)
         file_id = getattr(result, "id", None) or (result.get("id") if isinstance(result, dict) else None)
         if not file_id:
             raise RuntimeError("Moonshot upload did not return a file id")
@@ -501,12 +503,46 @@ class KimiModelProvider(OpenAICompatibleProvider):
         # Delegate to OpenAI-compatible base using Moonshot base_url
         # Ensure non-streaming by default for MCP tools
         kwargs.setdefault("stream", False)
-        return super().generate_content(
-            prompt=prompt,
-            model_name=self._resolve_model_name(model_name),
-            system_prompt=system_prompt,
-            temperature=temperature,
-            max_output_tokens=max_output_tokens,
-            images=images,
-            **kwargs,
-        )
+
+        # Minimal resilience wrapper (mirrors GLM retry behavior)
+        import os as _os, time as _time
+        try:
+            from utils.resilient_errors import user_friendly_message  # type: ignore
+        except Exception:
+            def user_friendly_message(exc: Exception) -> str:  # fallback
+                return str(exc)
+
+        retries = 0
+        backoff = 1.5
+        try:
+            retries = int(_os.getenv("RESILIENT_RETRIES", "2"))
+            backoff = float(_os.getenv("RESILIENT_BACKOFF_SECS", "1.5"))
+        except Exception:
+            pass
+
+        attempt = 0
+        last_exc: Exception | None = None
+        resolved_model = self._resolve_model_name(model_name)
+        while attempt <= retries:
+            try:
+                return super().generate_content(
+                    prompt=prompt,
+                    model_name=resolved_model,
+                    system_prompt=system_prompt,
+                    temperature=temperature,
+                    max_output_tokens=max_output_tokens,
+                    images=images,
+                    **kwargs,
+                )
+            except Exception as e:
+                last_exc = e
+                if attempt == retries:
+                    logging.error("Kimi generate_content failed after %s attempts: %s", attempt + 1, e)
+                    raise RuntimeError(user_friendly_message(e)) from e
+                _time.sleep(backoff)
+                backoff *= 2
+                attempt += 1
+
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("Unknown error in Kimi generate_content")

@@ -53,6 +53,9 @@ class KimiChatWithToolsTool(BaseTool):
             "Output: Return the raw response JSON (choices, usage). Keep responses concise and on-task."
         )
 
+    def get_annotations(self) -> dict | None:
+        return {"provider": "kimi"}
+
     def get_request_model(self):
         return ToolRequest
 
@@ -67,10 +70,18 @@ class KimiChatWithToolsTool(BaseTool):
 
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
         # Resolve provider instance from registry; force Kimi provider and model id
-        requested_model = arguments.get("model") or os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
-        # Map any non-Kimi requests (e.g., 'auto', 'glm-4.5-flash') to a valid Kimi default
-        if requested_model not in {"kimi-k2-0711-preview","kimi-k2-0905-preview","kimi-k2-turbo-preview","kimi-latest","kimi-thinking-preview","moonshot-v1-8k","moonshot-v1-32k","moonshot-v1-128k","moonshot-v1-8k-vision-preview","moonshot-v1-32k-vision-preview","moonshot-v1-128k-vision-preview"}:
+        requested_model = arguments.get("model")
+        allowed_kimi = {"kimi-k2-0711","kimi-k2-0711-preview","kimi-k2-0905","kimi-k2-0905-preview","kimi-k2-turbo","kimi-k2-turbo-preview","kimi-latest","kimi-thinking-preview","moonshot-v1-8k","moonshot-v1-32k","moonshot-v1-128k","moonshot-v1-8k-vision-preview","moonshot-v1-32k-vision-preview","moonshot-v1-128k-vision-preview"}
+        if not requested_model or str(requested_model).strip().lower() == "auto":
             requested_model = os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
+        else:
+            low = str(requested_model).strip().lower()
+            if not any(k in low for k in ["kimi","moonshot-v1"]) and low not in allowed_kimi:
+                # Explicit mismatch: user requested a non-Kimi model for a Kimi tool
+                return [TextContent(type="text", text=json.dumps({
+                    "error": "Model/provider mismatch: Kimi tool requires a Kimi model",
+                    "requested_model": requested_model
+                }, ensure_ascii=False))]
 
         prov = ModelProviderRegistry.get_provider(ProviderType.KIMI)
         if not isinstance(prov, KimiModelProvider):

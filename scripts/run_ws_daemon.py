@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# DEPRECATED (Phase A): Prefer scripts/ws_start.ps1 for starting the WS daemon.
+# This script remains for historical compatibility.
+
 import sys
 from pathlib import Path
 

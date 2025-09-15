@@ -29,6 +29,15 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 logger = logging.getLogger("ws_daemon")
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
 
+# Reduce noisy websockets debug tracebacks for malformed/abrupt connections
+try:
+    logging.getLogger("websockets").setLevel(logging.INFO)
+    logging.getLogger("websockets.server").setLevel(logging.INFO)
+    logging.getLogger("websockets.client").setLevel(logging.INFO)
+    logging.getLogger("websockets.protocol").setLevel(logging.INFO)
+except Exception:
+    pass
+
 EXAI_WS_HOST = os.getenv("EXAI_WS_HOST", "127.0.0.1")
 EXAI_WS_PORT = int(os.getenv("EXAI_WS_PORT", "8765"))
 AUTH_TOKEN = os.getenv("EXAI_WS_TOKEN", "")
@@ -215,9 +224,23 @@ async def _safe_send(ws: WebSocketServerProtocol, payload: dict) -> bool:
 async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dict[str, Any]) -> None:
     op = msg.get("op")
     if op == "list_tools":
-        # Build a minimal tool descriptor set
+        # Build a minimal tool descriptor set with UI profile-based visibility
         tools = []
+        profile = os.getenv("UI_PROFILE", "compact").strip().lower()
+        visible_set = None
+        if profile == "compact":
+            try:
+                from tools.registry import COMPACT_VISIBLE_TOOLS as _COMPACT
+                visible_set = set(_COMPACT)
+            except Exception:
+                visible_set = {
+                    "chat","analyze","codereview","debug","refactor","testgen",
+                    "planner","secaudit","precommit","tracer","consensus","status",
+                }
         for name, tool in SERVER_TOOLS.items():
+            # Apply compact filter when enabled
+            if visible_set is not None and name not in visible_set:
+                continue
             try:
                 tools.append({
                     "name": tool.name,
@@ -272,9 +295,15 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
         call_key = _make_call_key(name, arguments)
         # Optional: disable semantic coalescing per tool via env EXAI_WS_DISABLE_COALESCE_FOR_TOOLS
         try:
-            _disable_set = {s.strip().lower() for s in os.getenv("EXAI_WS_DISABLE_COALESCE_FOR_TOOLS", "").split(",") if s.strip()}
+            _disable_set_env = {s.strip().lower() for s in os.getenv("EXAI_WS_DISABLE_COALESCE_FOR_TOOLS", "").split(",") if s.strip()}
         except Exception:
-            _disable_set = set()
+            _disable_set_env = set()
+        # Default: disable coalescing for local/fast tools to prevent spurious duplicate timeouts
+        _default_disable = {
+            "analyze","planner","codereview","debug","refactor","testgen",
+            "precommit","tracer","status","provider_capabilities","listmodels"
+        }
+        _disable_set = _default_disable | _disable_set_env
         if name.lower() in _disable_set:
             # Make call_key unique to avoid coalescing for this tool
             call_key = f"{call_key}::{uuid.uuid4()}"

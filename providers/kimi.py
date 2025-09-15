@@ -1,5 +1,8 @@
 ﻿"""Kimi (Moonshot AI) model provider implementation."""
 
+# DEPRECATION (Phase B): New code should import from src.providers.kimi.
+# This legacy module remains for compatibility; functionality is unchanged.
+
 import logging
 from typing import Optional
 

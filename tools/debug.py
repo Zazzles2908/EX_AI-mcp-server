@@ -389,6 +389,30 @@ class DebugIssueTool(WorkflowTool):
             file_content, _ = self._prepare_file_content_for_prompt(
                 list(consolidated_findings.relevant_files), None, "Essential debugging files"
             )
+
+            # Apply Advanced Context Manager optimization for debugging context
+            if file_content and len(file_content) > 8000:  # Lower threshold for debugging context
+                try:
+                    from utils.advanced_context import optimize_file_content
+
+                    optimized_content, optimization_metadata = optimize_file_content(
+                        file_content=file_content,
+                        file_paths=list(consolidated_findings.relevant_files),
+                        model_context=getattr(self, "_model_context", None),
+                        context_label="Essential debugging files"
+                    )
+
+                    if optimization_metadata.get("optimized", False):
+                        file_content = optimized_content
+                        logger.info(
+                            f"[CONTEXT_OPTIMIZATION] debug: Optimized debugging file content "
+                            f"({optimization_metadata.get('compression_ratio', 1.0):.2f} compression ratio, "
+                            f"{len(optimization_metadata.get('strategies_applied', []))} strategies applied)"
+                        )
+                except Exception as e:
+                    logger.warning(f"[CONTEXT_OPTIMIZATION] debug: Failed to optimize debugging file content: {e}")
+                    # Continue with original content if optimization fails
+
             if file_content:
                 context_parts.append(
                     f"\n=== ESSENTIAL FILES FOR DEBUGGING ===\n{file_content}\n=== END ESSENTIAL FILES ==="

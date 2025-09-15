@@ -319,8 +319,8 @@ class TestAbsolutePathValidation:
     # workflow testing of the new codereview tool.
 
     @pytest.mark.asyncio
-    async def test_thinkdeep_tool_relative_path_rejected(self):
-        """Test that thinkdeep tool rejects relative paths"""
+    async def test_thinkdeep_tool_rejects_malicious_paths(self):
+        """Test that thinkdeep tool rejects malicious directory traversal paths"""
         tool = ThinkDeepTool()
         result = await tool.execute(
             {
@@ -329,32 +329,32 @@ class TestAbsolutePathValidation:
                 "total_steps": 1,
                 "next_step_required": False,
                 "findings": "Initial analysis",
-                "files_checked": ["./local/file.py"],
+                "files_checked": ["../../../etc/passwd"],  # Directory traversal attack
             }
         )
 
         assert len(result) == 1
         response = json.loads(result[0].text)
         assert response["status"] == "error"
-        assert "must be FULL absolute paths" in response["content"]
-        assert "./local/file.py" in response["content"]
+        assert "security" in response["content"].lower() or "path escapes" in response["content"].lower()
+        assert "etc/passwd" in response["content"]
 
     @pytest.mark.asyncio
-    async def test_chat_tool_relative_path_rejected(self):
-        """Test that chat tool rejects relative paths"""
+    async def test_chat_tool_rejects_malicious_paths(self):
+        """Test that chat tool rejects malicious directory traversal paths"""
         tool = ChatTool()
         result = await tool.execute(
             {
                 "prompt": "Explain this code",
-                "files": ["code.py"],  # relative path without ./
+                "files": ["../../../etc/passwd"],  # Directory traversal attack
             }
         )
 
         assert len(result) == 1
         response = json.loads(result[0].text)
         assert response["status"] == "error"
-        assert "must be FULL absolute paths" in response["content"]
-        assert "code.py" in response["content"]
+        assert "security" in response["content"].lower() or "path escapes" in response["content"].lower()
+        assert "etc/passwd" in response["content"]
 
     @pytest.mark.asyncio
     async def test_analyze_tool_accepts_absolute_paths(self):

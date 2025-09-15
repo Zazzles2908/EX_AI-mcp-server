@@ -1,6 +1,9 @@
-# EX MCP Architecture (Personal Notes)
+# EX MCP Architecture Overview
 
-Short, practical overview of how EX MCP is wired, how tools run, and how models are called.
+**Updated**: 2025-01-13
+**Status**: Production with Advanced Context Manager Integration
+
+Comprehensive overview of how EX MCP is architected, how tools execute, and how the Advanced Context Manager optimizes performance.
 
 ## 1) Entry & Transports
 - Stdio MCP (default): server.py exposes tools via the MCP protocol over stdio.

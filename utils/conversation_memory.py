@@ -1003,6 +1003,58 @@ def build_conversation_history(context: ThreadContext, model_context=None, read_
 
     total_conversation_tokens = estimate_tokens(complete_history)
 
+    # Apply Advanced Context Manager optimization for large conversation histories
+    if total_conversation_tokens > 15000:  # Optimize substantial conversation histories
+        try:
+            from utils.advanced_context import optimize_conversation_thread
+
+            # Create a temporary thread context for optimization
+            temp_context = ThreadContext(
+                thread_id=context.thread_id,
+                created_at=context.created_at,
+                last_updated_at=context.last_updated_at,
+                tool_name=context.tool_name,
+                turns=all_turns,
+                initial_context=context.initial_context
+            )
+
+            optimized_messages, optimization_metadata = optimize_conversation_thread(
+                thread_context=temp_context,
+                model_context=model_context,
+                include_files=True
+            )
+
+            if optimization_metadata.get("optimized", False):
+                # Reconstruct optimized history from messages
+                optimized_parts = [
+                    "=== CONVERSATION HISTORY (CONTINUATION) ===",
+                    f"Thread: {context.thread_id}",
+                    f"Tool: {context.tool_name}",
+                    f"Turn {total_turns}/{MAX_CONVERSATION_TURNS}",
+                    "You are continuing this conversation thread from where it left off.",
+                    "",
+                    "=== OPTIMIZED CONVERSATION CONTEXT ===",
+                ]
+
+                for i, message in enumerate(optimized_messages):
+                    role_label = "Claude" if message.get("role") == "user" else "Assistant"
+                    optimized_parts.append(f"\n--- Turn {i+1} ({role_label}) ---")
+                    optimized_parts.append(message.get("content", ""))
+
+                optimized_parts.append("\n=== END CONVERSATION HISTORY ===")
+
+                complete_history = "\n".join(optimized_parts)
+                total_conversation_tokens = estimate_tokens(complete_history)
+
+                logger.info(
+                    f"[CONTEXT_OPTIMIZATION] conversation_memory: Optimized conversation history "
+                    f"({optimization_metadata.get('compression_ratio', 1.0):.2f} compression ratio, "
+                    f"{len(optimization_metadata.get('strategies_applied', []))} strategies applied)"
+                )
+        except Exception as e:
+            logger.warning(f"[CONTEXT_OPTIMIZATION] conversation_memory: Failed to optimize conversation history: {e}")
+            # Continue with original history if optimization fails
+
     # Summary log of what was built
     user_turns = len([t for t in all_turns if t.role == "user"])
     assistant_turns = len([t for t in all_turns if t.role == "assistant"])

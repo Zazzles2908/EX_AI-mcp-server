@@ -845,13 +845,34 @@ async def handle_list_tools() -> list[Tool]:
         allowlist = set()
         denylist = set()
 
+    # UI profile-based visibility filter (compact vs full)
+    # Default to compact profile unless explicitly set to 'full'
+    profile = os.getenv("UI_PROFILE", "compact").strip().lower()
+    visible_set = None
+    if profile == "compact":
+        try:
+            # Import compact set from registry to keep single source of truth
+            from tools.registry import COMPACT_VISIBLE_TOOLS as _COMPACT
+            visible_set = set(_COMPACT)
+        except Exception:
+            # Fallback hardcoded set (must include consensus)
+            visible_set = {
+                "chat","analyze","codereview","debug","refactor","testgen",
+                "planner","secaudit","precommit","tracer","consensus","status",
+            }
+
     # Add all registered AI-powered tools from the TOOLS registry
     for tool in TOOLS.values():
-        # Apply optional allow/deny lists generically
         nm = tool.name.lower()
+
+        # Apply optional allow/deny lists generically first
         if allowlist and nm not in allowlist:
             continue
         if denylist and nm in denylist:
+            continue
+
+        # Apply UI compact visibility filter (advertise <=12)
+        if visible_set is not None and nm not in visible_set:
             continue
 
         # Get optional annotations from the tool (env-gated)
@@ -1275,6 +1296,23 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         # Skip model resolution for tools that don't require models (e.g., planner)
         if not tool.requires_model():
             logger.debug(f"Tool {name} doesn't require model resolution - skipping model validation")
+            # Enhanced request validation before execution
+            try:
+                from utils.request_validation import validate_tool_request
+                validation_error = validate_tool_request(arguments, client_id=None)  # TODO: Extract client ID
+                if validation_error:
+                    from mcp.types import TextContent as _TextContent
+                    import json as _json
+                    error_response = {
+                        "status": "validation_error",
+                        "error": validation_error,
+                        "tool": name
+                    }
+                    return [_TextContent(type="text", text=_json.dumps(error_response))]
+            except Exception as validation_exc:
+                logger.warning(f"Request validation failed for tool {name}: {validation_exc}")
+                # Continue with execution if validation itself fails
+
             # Execute tool directly without model context
             try:
                 return await tool.execute(arguments)
@@ -1287,21 +1325,35 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                 from mcp.types import TextContent as _TextContent
                 import json as _json
                 if _ValidationError and isinstance(e, _ValidationError):
+                    # Use structured validation error handling
+                    try:
+                        from utils.error_handling import handle_validation_error
+                        error_json = handle_validation_error(e, f"{name} tool arguments")
+                        return [_TextContent(type="text", text=error_json)]
+                    except Exception:
+                        # Fallback to original error handling
+                        err = {
+                            "status": "invalid_request",
+                            "error": "Invalid arguments for tool",
+                            "details": str(e),
+                            "tool": name,
+                        }
+                        logger.warning("Tool %s argument validation failed: %s", name, e)
+                        return [_TextContent(type="text", text=_json.dumps(err))]
+                # Use structured error handling for execution errors
+                try:
+                    from utils.error_handling import handle_tool_error
+                    error_json = handle_tool_error(e, name, "execution")
+                    return [_TextContent(type="text", text=error_json)]
+                except Exception:
+                    # Fallback to original error handling
+                    logger.error("Tool %s execution failed: %s", name, e, exc_info=True)
                     err = {
-                        "status": "invalid_request",
-                        "error": "Invalid arguments for tool",
-                        "details": str(e),
+                        "status": "execution_error",
+                        "error": str(e),
                         "tool": name,
                     }
-                    logger.warning("Tool %s argument validation failed: %s", name, e)
                     return [_TextContent(type="text", text=_json.dumps(err))]
-                logger.error("Tool %s execution failed: %s", name, e, exc_info=True)
-                err = {
-                    "status": "execution_error",
-                    "error": str(e),
-                    "tool": name,
-                }
-                return [_TextContent(type="text", text=_json.dumps(err))]
 
         # Auto model selection helper
         def _has_cjk(text: str) -> bool:
@@ -1539,6 +1591,23 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         except Exception:
             pass
 
+        # Enhanced request validation before execution
+        try:
+            from utils.request_validation import validate_tool_request
+            validation_error = validate_tool_request(arguments, client_id=None)  # TODO: Extract client ID
+            if validation_error:
+                from mcp.types import TextContent as _TextContent
+                import json as _json
+                error_response = {
+                    "status": "validation_error",
+                    "error": validation_error,
+                    "tool": name
+                }
+                return [_TextContent(type="text", text=_json.dumps(error_response))]
+        except Exception as validation_exc:
+            logger.warning(f"Request validation failed for tool {name}: {validation_exc}")
+            # Continue with execution if validation itself fails
+
         # Execute tool with pre-resolved model context
         result = await tool.execute(arguments)
         # Normalize result shape to list[TextContent]
@@ -1571,7 +1640,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                 while steps < max_steps:
                     primary = result[-1]
                     text = None
-                    if isinstance(primary, _TextContent) and primary.type == "text":
+                    if isinstance(primary, TextContent) and primary.type == "text":
                         text = primary.text or ""
                     elif isinstance(primary, dict):
                         text = primary.get("text")
@@ -1601,7 +1670,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                     logger.info(f"[AUTO-CONTINUE] Executing next step for {name}: step_number={next_args.get('step_number')}")
                     result = await tool.execute(next_args)
                     # Normalize result shape for auto-continued step
-                    from mcp.types import TextContent as _TextContent
+                    
                     if isinstance(result, _TextContent):
                         result = [result]
                     elif not isinstance(result, list):
@@ -1619,7 +1688,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         try:
             progress_log = get_progress_log()
             if isinstance(result, list) and result:
-                from mcp.types import TextContent
+                
                 primary = result[-1]
                 progress_block = None
                 if progress_log:
@@ -1643,14 +1712,14 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                             primary.text = _json.dumps(data, ensure_ascii=False)
                 # Always include a visible activity summary block for UI dropdowns (unconditional)
                 try:
-                    from mcp.types import TextContent as _Txt
+                    
                     tail = f"=== PROGRESS ===\n{progress_block}\n=== END PROGRESS ===" if progress_block else "(no progress captured)"
 
                     # Optional compact summary line at top (off by default to avoid replacing first block)
                     try:
                         if _env_true("EX_ACTIVITY_SUMMARY_AT_TOP", "false"):
                             prog_count = len(progress_log) if progress_log else 0
-                            summary = _Txt(type="text", text=f"Activity: {prog_count} progress events (req_id={req_id})")
+                            summary = TextContent(type="text", text=f"Activity: {prog_count} progress events (req_id={req_id})")
                             # Put before all blocks so even 'show-first-only' UIs surface it
                             result.insert(0, summary)
                     except Exception:

@@ -1,12 +1,172 @@
-﻿name: CI
+name: Comprehensive CI
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "develop"]
   pull_request:
     branches: ["main"]
+
 jobs:
-  build:
+  security-scan:
+    name: Security & Vulnerability Scanning
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: echo "ok"
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety semgrep
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run Bandit security scan
+        run: |
+          bandit -r . -f json -o bandit-report.json || true
+          bandit -r . -f txt
+
+      - name: Run Safety dependency scan
+        run: |
+          safety check --json --output safety-report.json || true
+          safety check
+
+      - name: Run Semgrep security scan
+        run: |
+          semgrep --config=auto --json --output=semgrep-report.json . || true
+          semgrep --config=auto .
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+            semgrep-report.json
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install quality tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint mypy radon complexity-report
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run MyPy type checking
+        run: |
+          mypy . --ignore-missing-imports --no-strict-optional || true
+
+      - name: Run Pylint analysis
+        run: |
+          pylint --output-format=json --reports=y . > pylint-report.json || true
+          pylint . || true
+
+      - name: Run complexity analysis
+        run: |
+          radon cc . --json > complexity-report.json || true
+          radon cc . --show-complexity --min=B
+
+      - name: Upload quality reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: quality-reports
+          path: |
+            pylint-report.json
+            complexity-report.json
+
+  docker-validation:
+    name: Docker Build & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: |
+          docker build -t exai-mcp-server:test .
+
+      - name: Test Docker image
+        run: |
+          # Test that the image starts and responds
+          docker run --rm -d --name test-container -p 8080:8080 exai-mcp-server:test
+          sleep 10
+          # Add basic health check here
+          docker stop test-container || true
+
+      - name: Run Trivy security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'exai-mcp-server:test'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  schema-validation:
+    name: Schema & Configuration Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Validate Pydantic schemas
+        run: |
+          # Test that all tool schemas are valid
+          python -c "
+          import sys
+          sys.path.append('.')
+          from tools.registry import ToolRegistry
+          registry = ToolRegistry()
+          tools = registry.get_available_tools()
+          print(f'✅ Successfully validated {len(tools)} tool schemas')
+          "
+
+      - name: Test tool imports
+        run: |
+          # Ensure all tools can be imported without errors
+          python -c "
+          import sys
+          sys.path.append('.')
+          from tools.registry import TOOL_MAP
+          for tool_name, (module_path, class_name) in TOOL_MAP.items():
+              try:
+                  module = __import__(module_path, fromlist=[class_name])
+                  tool_class = getattr(module, class_name)
+                  print(f'✅ {tool_name}: {tool_class.__name__}')
+              except Exception as e:
+                  print(f'❌ {tool_name}: {e}')
+                  sys.exit(1)
+          print('✅ All tools imported successfully')
+          "

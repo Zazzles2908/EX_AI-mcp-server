@@ -107,13 +107,13 @@ class ActivityTool(SimpleTool):
         if source not in {"activity", "server", "auto"}:
             source = "auto"
 
-        def _expand(p: str) -> Path:
-            from os.path import expanduser, expandvars, abspath
-            return Path(abspath(expanduser(expandvars(p)))).resolve()
-
         # Candidate paths with optional environment overrides
         act_override = os.getenv("EX_ACTIVITY_LOG_PATH", "").strip()
         srv_override = os.getenv("EX_SERVER_LOG_PATH", "").strip()
+
+        def _expand(p: str) -> Path:
+            import os.path
+            return Path(os.path.abspath(os.path.expanduser(os.path.expandvars(p)))).resolve()
         act_path = _expand(act_override) if act_override else (project_root / "logs" / "mcp_activity.log").resolve()
         srv_path = _expand(srv_override) if srv_override else (project_root / "logs" / "mcp_server.log").resolve()
 
@@ -233,7 +233,6 @@ class ActivityTool(SimpleTool):
                 return [TextContent(type="text", text=f"[activity:error] Invalid filter regex: {e}")]
 
         # Optional structured output (flag-gated)
-        import os
         ACTIVITY_STRUCTURED_OUTPUT_ENABLED = os.getenv("ACTIVITY_STRUCTURED_OUTPUT_ENABLED", "false").strip().lower() == "true"
         structured = bool(req.structured) if req.structured is not None else False
         if ACTIVITY_STRUCTURED_OUTPUT_ENABLED and structured:

@@ -44,7 +44,7 @@ class TestConsensusTool:
 
     def test_request_validation_missing_models_step1(self):
         """Test that step 1 requires models field."""
-        with pytest.raises(ValueError, match="Step 1 requires 'models' field"):
+        with pytest.raises(ValueError, match="Step 1 requires 'models' to specify which models to consult"):
             ConsensusRequest(
                 step="Test step",
                 step_number=1,

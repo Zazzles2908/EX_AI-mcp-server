@@ -25,6 +25,16 @@ class ToolcallLogTail(BaseTool):
             },
         }
 
+    def get_system_prompt(self) -> str:
+        return "Return tool call log events in JSON format."
+
+    def get_request_model(self):
+        from tools.shared.base_models import ToolRequest
+        return ToolRequest
+
+    def requires_model(self) -> bool:
+        return False
+
     async def prepare_prompt(self, request) -> str:
         return ""
 

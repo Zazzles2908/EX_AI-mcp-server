@@ -24,6 +24,10 @@ class KimiUploadAndExtractTool(BaseTool):
             "and return messages you can inject into chat/completions (system-role)."
         )
 
+    def get_annotations(self) -> dict | None:
+        # Provider hint for routers/clients
+        return {"provider": "kimi"}
+
     def get_input_schema(self) -> Dict[str, Any]:
         return {
             "type": "object",
@@ -175,14 +179,32 @@ class KimiUploadAndExtractTool(BaseTool):
         import asyncio as _aio
         msgs = await _aio.to_thread(self._run, **arguments)
         return [TextContent(type="text", text=json.dumps(msgs, ensure_ascii=False))]
+    def get_annotations(self) -> dict | None:
+        return {"provider": "kimi"}
+
 
 
 
 class KimiMultiFileChatTool(BaseTool):
-    name = "kimi_multi_file_chat"
-    description = (
-        "Upload multiple files to Kimi, extract content, prepend as system messages, then call chat/completions."
-    )
+    def get_name(self) -> str:
+        return "kimi_multi_file_chat"
+
+    def get_description(self) -> str:
+        return (
+            "Upload multiple files to Kimi, extract content, prepend as system messages, then call chat/completions."
+        )
+
+    def get_input_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "files": {"type": "array", "items": {"type": "string"}},
+                "prompt": {"type": "string"},
+                "model": {"type": "string", "default": os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")},
+                "temperature": {"type": "number", "default": 0.3},
+            },
+            "required": ["files", "prompt"],
+        }
 
     def get_system_prompt(self) -> str:
         return (
@@ -198,6 +220,15 @@ class KimiMultiFileChatTool(BaseTool):
             "- Provider limits apply (e.g., ~100MB/file).\n"
             "Output: A concise answer to the user prompt informed by the provided files."
         )
+
+    def get_request_model(self):
+        return ToolRequest
+
+    def requires_model(self) -> bool:
+        return False
+
+    async def prepare_prompt(self, request: ToolRequest) -> str:
+        return ""
 
     def get_descriptor(self) -> Dict[str, Any]:
         return {
@@ -215,30 +246,48 @@ class KimiMultiFileChatTool(BaseTool):
             },
         }
 
-    def run(self, **kwargs) -> Dict[str, Any]:
-        files = kwargs.get("files") or []
-        prompt = kwargs.get("prompt") or ""
-        model = kwargs.get("model") or os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
-        temperature = float(kwargs.get("temperature") or 0.3)
+    async def execute(self, arguments: Dict[str, Any]) -> List[TextContent]:
+        files = arguments.get("files") or []
+        prompt = arguments.get("prompt") or ""
+        requested_model = arguments.get("model") or os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
+        temperature = float(arguments.get("temperature") or 0.3)
 
         if not files or not prompt:
-            raise ValueError("files and prompt are required")
+            return [TextContent(type="text", text=json.dumps({"error": "files and prompt are required"}))]
 
-        # Upload & extract
-        upload_tool = KimiUploadAndExtractTool()
-        sys_msgs = upload_tool.run(files=files)
+        # Enforce provider/model affinity: Kimi tool must use Kimi models
+        kimi_models = {
+            "kimi-k2-0711","kimi-k2-0711-preview","kimi-k2-0905","kimi-k2-0905-preview",
+            "kimi-k2-turbo","kimi-k2-turbo-preview","kimi-latest","kimi-thinking-preview",
+            "moonshot-v1-8k","moonshot-v1-32k","moonshot-v1-128k",
+            "moonshot-v1-8k-vision-preview","moonshot-v1-32k-vision-preview","moonshot-v1-128k-vision-preview",
+        }
+        m_lower = str(requested_model).strip().lower()
+        if m_lower == "auto" or not any(k in m_lower for k in ["kimi","moonshot-v1"]):
+            # Force to default Kimi model if auto or GLM/openrouter was provided
+            requested_model = os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
 
-        # Prepare messages
-        messages = [*sys_msgs, {"role": "user", "content": prompt}]
+        try:
+            # Upload & extract
+            upload_tool = KimiUploadAndExtractTool()
+            sys_msgs_result = await upload_tool.execute({"files": files})
+            sys_msgs = json.loads(sys_msgs_result[0].text)
 
-        prov = ModelProviderRegistry.get_provider_for_model(os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview"))
-        if not isinstance(prov, KimiModelProvider):
-            api_key = os.getenv("KIMI_API_KEY", "")
-            if not api_key:
-                raise RuntimeError("KIMI_API_KEY is not configured")
-            prov = KimiModelProvider(api_key=api_key)
+            # Prepare messages
+            messages = [*sys_msgs, {"role": "user", "content": prompt}]
 
-        # Use OpenAI-compatible client to create completion
-        resp = prov.client.chat.completions.create(model=model, messages=messages, temperature=temperature)
-        content = resp.choices[0].message.content
-        return {"model": model, "content": content}
+            prov = ModelProviderRegistry.get_provider_for_model(requested_model)
+            # Pre-call guard: ensure provider is Kimi
+            if not isinstance(prov, KimiModelProvider):
+                return [TextContent(type="text", text=json.dumps({
+                    "error": "Model/provider mismatch: Kimi tool requires a Kimi model.",
+                    "requested_model": requested_model
+                }, ensure_ascii=False))]
+
+            # Use OpenAI-compatible client to create completion
+            resp = prov.client.chat.completions.create(model=requested_model, messages=messages, temperature=temperature)
+            content = resp.choices[0].message.content
+            result = {"model": requested_model, "content": content}
+            return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
+        except Exception as e:
+            return [TextContent(type="text", text=json.dumps({"error": str(e)}))]

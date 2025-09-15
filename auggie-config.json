@@ -1,6 +1,6 @@
 {
   "auggie": {
-    "default_model": "auto",
+    "default_model": "glm-4.5-flash",
     "templates": {
       "auto_use": true,
       "directory": "templates/auggie/"

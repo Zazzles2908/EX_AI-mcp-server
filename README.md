@@ -1,3 +1,5 @@
+
+
 # EX MCP Server
 
 EX MCP Server is a Model Context Protocol (MCP) server that connects modern LLM providers and tools to MCP‑compatible clients (e.g., Claude Desktop/CLI). It provides a unified set of analysis, debugging, refactoring, documentation, testing, and project automation tools accessible over the MCP stdio protocol.

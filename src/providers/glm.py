@@ -64,15 +64,26 @@ class GLMModelProvider(ModelProvider):
     def __init__(self, api_key: str, base_url: Optional[str] = None, **kwargs):
         super().__init__(api_key, **kwargs)
         self.base_url = base_url or self.DEFAULT_BASE_URL
-        # Prefer official SDK; fallback to HTTP if not available
-        try:
-            from zhipuai import ZhipuAI  # type: ignore
-            self._use_sdk = True
-            self._sdk_client = ZhipuAI(api_key=self.api_key)
-        except Exception as e:
-            logger.warning("zhipuai SDK unavailable or failed to init; falling back to HTTP client: %s", e)
-            self._use_sdk = False
-            self.client = HttpClient(self.base_url, api_key=self.api_key, api_key_header="Authorization", api_key_prefix="Bearer ")
+        # Prefer HTTP client with explicit timeouts for predictability; allow opting into SDK via env
+        use_sdk_env = os.getenv("GLM_USE_SDK", "false").strip().lower() == "true"
+        self._use_sdk = False
+        if use_sdk_env:
+            try:
+                from zhipuai import ZhipuAI  # type: ignore
+                self._sdk_client = ZhipuAI(api_key=self.api_key)
+                self._use_sdk = True
+            except Exception as e:
+                logger.warning("zhipuai SDK failed to init; falling back to HTTP client: %s", e)
+                self._use_sdk = False
+        # Always initialize HTTP client with per-provider timeout prefix
+        self.client = HttpClient(
+            self.base_url,
+            api_key=self.api_key,
+            api_key_header="Authorization",
+            api_key_prefix="Bearer ",
+            timeout=None,  # build from env
+            timeout_prefix="GLM",
+        )
 
     def get_provider_type(self) -> ProviderType:
         return ProviderType.GLM
@@ -172,42 +183,71 @@ class GLMModelProvider(ModelProvider):
         resolved = self._resolve_model_name(model_name)
         payload = self._build_payload(prompt, system_prompt, resolved, temperature, max_output_tokens, **kwargs)
 
+        # Resilient provider call with simple retries + friendly error messages
+        import os as _os, time as _time
         try:
-            if getattr(self, "_use_sdk", False):
-                # Use official SDK
-                resp = self._sdk_client.chat.completions.create(
-                    model=resolved,
-                    messages=payload["messages"],
-                    temperature=payload.get("temperature"),
-                    max_tokens=payload.get("max_tokens"),
-                    stream=False,
-                )
-                # SDK returns an object; normalize to dict-like
-                raw = getattr(resp, "model_dump", lambda: resp)()
-                choice0 = (raw.get("choices") or [{}])[0]
-                text = ((choice0.get("message") or {}).get("content")) or ""
-                usage = raw.get("usage", {})
-            else:
-                # HTTP fallback
-                raw = self.client.post_json("/chat/completions", payload)
-                text = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
-                usage = raw.get("usage", {})
+            from utils.resilient_errors import user_friendly_message  # lightweight helper
+        except Exception:
+            def user_friendly_message(exc: Exception) -> str:  # fallback
+                return str(exc)
 
-            return ModelResponse(
-                content=text or "",
-                usage={
-                    "input_tokens": int(usage.get("prompt_tokens", 0)),
-                    "output_tokens": int(usage.get("completion_tokens", 0)),
-                    "total_tokens": int(usage.get("total_tokens", 0)),
-                },
-                model_name=resolved,
-                friendly_name="GLM",
-                provider=ProviderType.GLM,
-                metadata={"raw": raw},
-            )
-        except Exception as e:
-            logger.error("GLM generate_content failed: %s", e)
-            raise
+        retries = 0
+        backoff = 1.5
+        try:
+            retries = int(_os.getenv("RESILIENT_RETRIES", "2"))
+            backoff = float(_os.getenv("RESILIENT_BACKOFF_SECS", "1.5"))
+        except Exception:
+            pass
+
+        attempt = 0
+        last_exc: Exception | None = None
+        while attempt <= retries:
+            try:
+                if getattr(self, "_use_sdk", False):
+                    # Use official SDK
+                    resp = self._sdk_client.chat.completions.create(
+                        model=resolved,
+                        messages=payload["messages"],
+                        temperature=payload.get("temperature"),
+                        max_tokens=payload.get("max_tokens"),
+                        stream=False,
+                    )
+                    # SDK returns an object; normalize to dict-like
+                    raw = getattr(resp, "model_dump", lambda: resp)()
+                    choice0 = (raw.get("choices") or [{}])[0]
+                    text = ((choice0.get("message") or {}).get("content")) or ""
+                    usage = raw.get("usage", {})
+                else:
+                    # HTTP fallback
+                    raw = self.client.post_json("/chat/completions", payload)
+                    text = raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+                    usage = raw.get("usage", {})
+
+                return ModelResponse(
+                    content=text or "",
+                    usage={
+                        "input_tokens": int(usage.get("prompt_tokens", 0)),
+                        "output_tokens": int(usage.get("completion_tokens", 0)),
+                        "total_tokens": int(usage.get("total_tokens", 0)),
+                    },
+                    model_name=resolved,
+                    friendly_name="GLM",
+                    provider=ProviderType.GLM,
+                    metadata={"raw": raw, "retries": attempt},
+                )
+            except Exception as e:
+                last_exc = e
+                if attempt == retries:
+                    logger.error("GLM generate_content failed after %s attempts: %s", attempt + 1, e)
+                    raise RuntimeError(user_friendly_message(e)) from e
+                _time.sleep(backoff)
+                backoff *= 2
+                attempt += 1
+
+        # Should not reach here; re-raise last exception defensively
+        if last_exc:
+            raise last_exc
+        raise RuntimeError("Unknown error in GLM generate_content")
 
     def upload_file(self, file_path: str, purpose: str = "agent") -> str:
         """Upload a file to GLM Files API and return its file id.

@@ -183,8 +183,10 @@ class ConsensusTool(WorkflowTool):
 
     def get_description(self) -> str:
         return (
-            "COMPREHENSIVE CONSENSUS WORKFLOW - Step-by-step multi-model consensus with structured analysis. "
-            "This tool guides you through a systematic process where you:\n\n"
+            "[DEPRECATED] COMPREHENSIVE CONSENSUS WORKFLOW - Step-by-step multi-model consensus with structured analysis. "
+            "This tool remains for compatibility and will be replaced by a unified workflow engine. "
+            "Recommended alternatives for most use cases: analyze, codereview, refactor, thinkdeep.\n\n"
+            "It guides you through a systematic process where you:\n\n"
             "1. Start with step 1: provide your own neutral analysis of the proposal\n"
             "2. The tool will then consult each specified model one by one\n"
             "3. You'll receive each model's response in subsequent steps\n"
@@ -680,7 +682,7 @@ of the evidence, even when it strongly points in one direction.""",
                 hidden_enabled = os.getenv("HIDDEN_MODEL_ROUTER_ENABLED", "true").strip().lower() == "true"
                 sentinels = {s.strip().lower() for s in os.getenv("ROUTER_SENTINEL_MODELS", "glm-4.5-flash,auto").split(",") if s.strip()}
                 if hidden_enabled and name.strip().lower() in sentinels:
-                    from providers.registry import ModelProviderRegistry as _Reg
+                    from src.providers.registry import ModelProviderRegistry as _Reg
                     routed = _Reg.get_preferred_fallback_model(None)
                     if routed:
                         resolved = routed

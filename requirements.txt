@@ -4,6 +4,7 @@ pydantic>=2.0.0
 python-dotenv>=1.0.0
 importlib-resources>=5.0.0; python_version<"3.9"
 httpx>=0.28.0
+requests>=2.32.0  # Required for GLM agent tools
 
 # Development dependencies (install with pip install -r requirements-dev.txt)
 # pytest>=7.4.0

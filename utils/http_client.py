@@ -9,6 +9,7 @@ Purpose:
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Dict, Optional
 
 import httpx
@@ -22,13 +23,32 @@ class HttpClient:
         api_key: str | None = None,
         api_key_header: str = "Authorization",
         api_key_prefix: str = "Bearer ",
-        timeout: float = 60.0,
+        timeout: float | httpx.Timeout | None = None,
+        timeout_prefix: str | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.api_key_header = api_key_header
         self.api_key_prefix = api_key_prefix
-        self._client = httpx.Client(timeout=timeout, follow_redirects=True)
+
+        to = timeout
+        if to is None:
+            # Build Timeout from environment with optional prefix, e.g., GLM_HTTP_TIMEOUT_CONNECT_SECS
+            def _env_to_float(name: str, default: float) -> float:
+                try:
+                    return float(os.getenv(name, str(default)))
+                except Exception:
+                    return default
+            prefix = (timeout_prefix or "").strip().upper()
+            def key(suffix: str) -> str:
+                return f"{prefix}_HTTP_TIMEOUT_{suffix}_SECS" if prefix else f"HTTP_TIMEOUT_{suffix}_SECS"
+            connect = _env_to_float(key("CONNECT"), 8.0)
+            read = _env_to_float(key("READ"), 30.0)
+            write = _env_to_float(key("WRITE"), 60.0)
+            pool = _env_to_float(key("POOL"), 60.0)
+            to = httpx.Timeout(connect=connect, read=read, write=write, pool=pool)
+
+        self._client = httpx.Client(timeout=to, follow_redirects=True)
 
     @property
     def client(self) -> httpx.Client:

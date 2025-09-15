@@ -1156,13 +1156,26 @@ class BaseTool(ABC):
                     f"[FILES] {self.name}: Expanded {len(files_to_embed)} paths to {len(expanded_files)} individual files"
                 )
 
+                # Secure input validation (env-gated)
+                try:
+                    from utils.secure_inputs import validate_files_for_embedding
+                    err = validate_files_for_embedding(expanded_files)
+                    if err:
+                        logger.info(f"[SECURE_INPUTS] Rejected files: {err}")
+                        return err, []
+                except Exception as _e:
+                    logger.debug(f"[SECURE_INPUTS] Skipped validation: {_e}")
+
                 file_content = read_files(
                     files_to_embed,
                     max_tokens=effective_max_tokens + reserve_tokens,
                     reserve_tokens=reserve_tokens,
                     include_line_numbers=self.wants_line_numbers_by_default(),
                 )
-                self._validate_token_limit(file_content, context_description)
+                # IMPORTANT: Do NOT apply MCP transport size validation to internal file content.
+                # read_files already budgets tokens against model context; enforcing MCP limit here
+                # causes false failures for workflow/expert analysis. Size checks for user input
+                # are handled separately via check_prompt_size().
                 content_parts.append(file_content)
 
                 # Track the expanded files as actually processed
@@ -1208,6 +1221,48 @@ class BaseTool(ABC):
                 logger.debug(f"[FILES] {self.name}: No skipped files to note")
 
         result = "".join(content_parts) if content_parts else ""
+
+        # Apply Advanced Context Manager optimization for large content
+        if result and len(result) > 12000:  # Optimize substantial content
+            try:
+                from utils.advanced_context import optimize_file_content
+
+                optimized_content, optimization_metadata = optimize_file_content(
+                    file_content=result,
+                    file_paths=request_files,
+                    model_context=model_context,
+                    context_label=context_description
+                )
+
+                if optimization_metadata.get("optimized", False):
+                    result = optimized_content
+                    logger.info(
+                        f"[CONTEXT_OPTIMIZATION] {self.name}: Optimized file content "
+                        f"({optimization_metadata.get('compression_ratio', 1.0):.2f} compression ratio, "
+                        f"{len(optimization_metadata.get('strategies_applied', []))} strategies applied)"
+                    )
+
+                    # Record performance metrics for tool-level optimization
+                    try:
+                        from utils.context_performance import record_context_operation
+
+                        record_context_operation(
+                            operation="tool_file_optimization",
+                            tool_name=self.name,
+                            original_tokens=optimization_metadata.get('original_tokens', 0),
+                            optimized_tokens=optimization_metadata.get('optimized_tokens', 0),
+                            processing_time_ms=0,  # Time tracked in context_manager
+                            cache_hit=optimization_metadata.get('cache_hit', False),
+                            strategies_applied=optimization_metadata.get('strategies_applied', []),
+                            content_type="tool_file_content",
+                            model_context=str(model_context) if model_context else None
+                        )
+                    except Exception as e:
+                        logger.debug(f"[CONTEXT_OPTIMIZATION] {self.name}: Failed to record performance metrics: {e}")
+            except Exception as e:
+                logger.warning(f"[CONTEXT_OPTIMIZATION] {self.name}: Failed to optimize file content: {e}")
+                # Continue with original content if optimization fails
+
         logger.debug(
             f"[FILES] {self.name}: _prepare_file_content_for_prompt returning {len(result)} chars, {len(actually_processed_files)} processed files"
         )

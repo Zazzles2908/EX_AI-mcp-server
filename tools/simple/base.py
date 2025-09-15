@@ -19,6 +19,8 @@ from tools.shared.base_models import ToolRequest
 from tools.shared.base_tool import BaseTool
 from tools.shared.schema_builders import SchemaBuilder
 
+from mcp.types import TextContent
+
 
 class SimpleTool(BaseTool):
     """
@@ -284,8 +286,6 @@ class SimpleTool(BaseTool):
         import json
         import logging
 
-        from mcp.types import TextContent
-
         from tools.models import ToolOutput
 
         logger = logging.getLogger(f"tools.{self.get_name()}")
@@ -322,12 +322,25 @@ class SimpleTool(BaseTool):
                 )
                 return [TextContent(type="text", text=error_output.model_dump_json())]
 
-            # Handle model resolution like old base.py
+            # Handle model resolution with ModelRouter (honor explicit non-auto)
             model_name = self.get_request_model_name(request)
             if not model_name:
                 from config import DEFAULT_MODEL
-
                 model_name = DEFAULT_MODEL
+            # Router hook
+            try:
+                from utils.model_router import ModelRouter, RoutingContext
+                if ModelRouter.is_enabled():
+                    routed = ModelRouter.decide(RoutingContext(
+                        tool_name=self.get_name(),
+                        prompt=self.get_request_prompt(request),
+                        files_count=len(self.get_request_files(request) or []),
+                        images_count=len(self.get_request_images(request) or []),
+                        requested_model=model_name,
+                    ))
+                    model_name = routed
+            except Exception as _e:
+                logger.debug(f"Router unavailable or failed: {_e}")
 
             # Store the current model name for later use
             self._current_model_name = model_name
@@ -642,13 +655,20 @@ class SimpleTool(BaseTool):
                 json_content = str(e)[len("MCP_SIZE_CHECK:") :]
                 return [TextContent(type="text", text=json_content)]
 
-            logger.error(f"Error in {self.get_name()}: {str(e)}")
-            error_output = ToolOutput(
-                status="error",
-                content=f"Error in {self.get_name()}: {str(e)}",
-                content_type="text",
-            )
-            return [TextContent(type="text", text=error_output.model_dump_json())]
+            # Use structured error handling for better user experience
+            try:
+                from utils.error_handling import handle_tool_error
+                error_json = handle_tool_error(e, self.get_name(), "execution")
+                return [TextContent(type="text", text=error_json)]
+            except Exception:
+                # Fallback to original error handling if structured handling fails
+                logger.error(f"Error in {self.get_name()}: {str(e)}")
+                error_output = ToolOutput(
+                    status="error",
+                    content=f"Error in {self.get_name()}: {str(e)}",
+                    content_type="text",
+                )
+                return [TextContent(type="text", text=error_output.model_dump_json())]
 
     def _parse_response(self, raw_text: str, request, model_info: Optional[dict] = None):
         """
@@ -992,55 +1012,69 @@ Please provide a thoughtful, comprehensive response:"""
 
     def _validate_file_paths(self, request) -> Optional[str]:
         """
-        Validate that all file paths in the request are absolute paths.
+        Validate and normalize file paths using SecureInputValidator when enabled.
 
-        This is a security measure to prevent path traversal attacks and ensure
-        proper access control. All file paths must be absolute (starting with '/').
-
-        Args:
-            request: The validated request object
-
-        Returns:
-            Optional[str]: Error message if validation fails, None if all paths are valid
+        Fallback to legacy absolute-path checks when SECURE_INPUTS_ENFORCED=false.
         """
         import os
         from pathlib import Path
         from utils.file_utils import resolve_and_validate_path
 
-        # Check if request has 'files' attribute (used by most tools)
         files = self.get_request_files(request)
-        if files:
-            # Compute repository root (two levels up from tools/simple/base.py -> repo root)
-            repo_root = Path(__file__).resolve().parents[2]
+        if not files:
+            return None
 
-            for file_path in files:
-                # 1) Absolute path requirement
-                if not os.path.isabs(file_path):
-                    return (
-                        f"Error: All file paths must be FULL absolute paths to real files / folders - DO NOT SHORTEN. "
-                        f"Received relative path: {file_path}\n"
-                        f"Please provide the full absolute path starting with '/' (must be FULL absolute paths to real files / folders - DO NOT SHORTEN)"
-                    )
+        # Compute repository root (two levels up from tools/simple/base.py -> repo root)
+        repo_root = Path(__file__).resolve().parents[2]
 
-                # 2) Secure resolution + containment check within repo root
+        # Prefer centralized validator if enabled
+        use_secure = False
+        try:
+            from config import SECURE_INPUTS_ENFORCED
+            use_secure = bool(SECURE_INPUTS_ENFORCED)
+        except Exception:
+            use_secure = False
+
+        if use_secure:
+            try:
+                from src.core.validation.secure_input_validator import SecureInputValidator
+                v = SecureInputValidator(repo_root=str(repo_root))
+                normalized: list[str] = []
+                for file_path in files:
+                    p = v.normalize_and_check(file_path)
+                    normalized.append(str(p))
+                # Overwrite request.files with normalized absolute paths if field exists
                 try:
-                    resolved = resolve_and_validate_path(file_path)
-                except (ValueError, PermissionError) as e:
-                    return (
-                        f"Error: Invalid or disallowed path: {file_path}\n"
-                        f"Reason: {type(e).__name__}: {e}"
-                    )
-
-                try:
-                    # Ensure the path is within the repository root
-                    resolved.relative_to(repo_root)
+                    self.set_request_files(request, normalized)
                 except Exception:
-                    return (
-                        f"Error: File path is outside the permitted project workspace.\n"
-                        f"Path: {file_path}\n"
-                        f"Allowed root: {repo_root}"
-                    )
+                    pass
+                return None
+            except Exception as e:
+                return f"Error: Invalid or disallowed path(s): {e}"
 
+        # Legacy checks (absolute path + containment)
+        for file_path in files:
+            if not os.path.isabs(file_path):
+                return (
+                    f"Error: All file paths must be FULL absolute paths to real files / folders - DO NOT SHORTEN. "
+                    f"Received relative path: {file_path}\n"
+                    f"Please provide the full absolute path starting with '/' (must be FULL absolute paths to real files / folders - DO NOT SHORTEN)"
+                )
+            try:
+                resolved = resolve_and_validate_path(file_path)
+            except (ValueError, PermissionError) as e:
+                return (
+                    f"Error: Invalid or disallowed path: {file_path}\n"
+                    f"Reason: {type(e).__name__}: {e}"
+                )
+            try:
+                resolved.relative_to(repo_root)
+            except Exception:
+                return (
+                    f"Error: File path is outside the permitted project workspace.\n"
+                    f"Path: {file_path}\n"
+                    f"Allowed root: {repo_root}"
+                )
         return None
 
     def prepare_chat_style_prompt(self, request, system_prompt: str = None) -> str:
