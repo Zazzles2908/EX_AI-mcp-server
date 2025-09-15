@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Deprecated developer sandbox. Prefer EXAI MCP routes.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 #!/usr/bin/env python3
 import os, sys, asyncio
 sys.path.insert(0, '.')

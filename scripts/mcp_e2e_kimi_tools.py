@@ -1,4 +1,13 @@
-﻿import asyncio
+﻿# DEPRECATION NOTICE
+# This script is deprecated in favor of EXAI MCP routes for E2E validation.
+# Use instead:
+#  - Health: status_exai-mcp (hub=true)
+#  - Quick QA: chat_exai-mcp on glm-4.5-flash
+#  - Reviews/Reports: analyze_exai-mcp / codereview_exai-mcp / testgen_exai-mcp
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
+import asyncio
 import os
 from pathlib import Path
 from dotenv import load_dotenv

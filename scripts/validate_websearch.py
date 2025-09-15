@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Specialized websearch validation deprecated. Prefer EXAI MCP analyze/testgen.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 import os, sys, json, asyncio, logging
 from dotenv import load_dotenv
 load_dotenv()

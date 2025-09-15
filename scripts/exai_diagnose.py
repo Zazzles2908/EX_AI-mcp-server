@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Specialized diagnostics deprecated. Prefer EXAI MCP status/analyze.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 #!/usr/bin/env python3
 """
 EX-AI MCP Diagnostic Script

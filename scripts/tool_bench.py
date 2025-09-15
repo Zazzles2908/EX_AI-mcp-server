@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Developer benchmarking script deprecated. Prefer EXAI MCP status/analyze/testgen.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 #!/usr/bin/env python3
 """
 EX MCP Server - Direct Tool Test Bench

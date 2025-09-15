@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Legacy audit flow deprecated. Prefer EXAI MCP analyze/thinkdeep with targeted files.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 from __future__ import annotations
 
 import datetime

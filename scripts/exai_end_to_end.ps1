@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# E2E orchestration script deprecated in favor of EXAI MCP-first workflows.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 [CmdletBinding()]
 param(
   [string]$Src = "C:\\Project\\zen-mcp-server",

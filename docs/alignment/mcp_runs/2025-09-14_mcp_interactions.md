@@ -131,3 +131,29 @@ Next rerun plan after restart:
 - Call F — Low-token QA (chat_exai-mcp): verify active src.tools shims and Option B shim status
 - Call G — Deeper QA (chat_exai-mcp): Phase B consolidation risks, rollout steps, guardrails
 
+## Post-restart MCP Calls (F, G) — 2025-09-15
+
+### MCP Call F — Low-token QA (Chat)
+- Tool: chat_exai-mcp
+- Provider: GLM
+- Model: glm-4.5-flash
+- Result: Executed (output displayed in MCP client UI)
+- Estimated Cost: low
+- Duration: fast
+- Summary (based on attached files):
+  - Active src.tools shims in registry: chat, planner, debug → src.tools.chat|planner|debug
+  - providers/registry_srcshim.py exists as a re-export shim and is not imported by default (staged/inactive)
+
+### MCP Call G — Deeper QA (Chat)
+- Tool: chat_exai-mcp
+- Provider: GLM
+- Model: glm-4.5-flash
+- Result: Executed (output displayed in MCP client UI)
+- Estimated Cost: moderate
+- Duration: short
+- Summary (key points under 180 words):
+  - Risks: import drift between providers/ and src/providers/; mixed registry paths; partial migrations affecting model selection/telemetry; accidental legacy imports after flip
+  - Rollout steps: lock registry entrypoints; pilot-activate Option B in one guarded module; CI guardrails to forbid legacy providers.* imports; surface provider/model per call
+  - Guardrails: feature flag for rapid revert; smoke test suite; cost/latency telemetry checks; activity log inspection for null-response conditions
+
+

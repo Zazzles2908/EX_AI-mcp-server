@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Superseded by current consolidation and EXAI MCP-first workflows.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 #!/usr/bin/env python3
 from __future__ import annotations
 

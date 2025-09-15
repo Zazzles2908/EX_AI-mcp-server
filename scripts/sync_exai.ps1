@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Legacy sync/orchestration deprecated. Prefer EXAI MCP routes and gh-mcp.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 $ErrorActionPreference='Stop'
 Write-Output '--- SYNC START ---'
 $path = 'C:\Project\EX-AI-MCP-Server'

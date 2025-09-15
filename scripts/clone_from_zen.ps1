@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Legacy cloning/sync flow deprecated. Prefer gh-mcp and standard GitHub flows.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 param(
   [string]$Src = "C:\\Project\\zen-mcp-server",
   [string]$Dst = "C:\\Project\\EX-AI-MCP-Server"

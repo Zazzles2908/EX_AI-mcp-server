@@ -1,3 +1,8 @@
+# DEPRECATION NOTICE
+# Developer demo script deprecated. Prefer EXAI MCP routes and canonical tools.
+# See docs/sweep_reports/current_exai_reviews/scripts_sweep_2025-09-15.md
+
+
 import os
 import sys
 import json
