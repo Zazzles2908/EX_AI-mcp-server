@@ -1,12 +1,27 @@
 # EX MCP Server
 
+[![CI](https://github.com/Zazzles2908/EX_AI-mcp-server/actions/workflows/test.yml/badge.svg)](https://github.com/Zazzles2908/EX_AI-mcp-server/actions/workflows/test.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![MCP](https://img.shields.io/badge/MCP-compatible-green)
+
+
 EX MCP Server is a Model Context Protocol (MCP) server that connects modern LLM providers and tools to MCP‑compatible clients (e.g., Claude Desktop/CLI). It provides a unified set of analysis, debugging, refactoring, documentation, testing, and project automation tools accessible over the MCP stdio protocol.
 
 ## Key Capabilities
 - Unified MCP server exposing rich development tools:
   - analyze, codereview, debug, refactor, tracer, testgen, precommit, listmodels, version
 - Provider integrations:
+
+
   - KIMI (Moonshot), GLM (Zhipu), OpenRouter, and custom OpenAI‑compatible endpoints
+
+## Quick Links
+- O&M Manual: [docs/o_and_m_manual/](docs/o_and_m_manual/)
+- Chat Sheet: [docs/o_and_m_manual/CHAT_SHEET.md](docs/o_and_m_manual/CHAT_SHEET.md)
+- Augment Code Guidelines (EXAI‑MCP default): [docs/policies/AUGMENT_CODE_GUIDELINES.md](docs/policies/AUGMENT_CODE_GUIDELINES.md)
+- Sweep Reports: [docs/sweep_reports/](docs/sweep_reports/)
+
 - MCP‑first architecture:
   - Subprocess stdio transport with direct config examples for Claude Desktop/CLI
 - Docker and local dev support:
