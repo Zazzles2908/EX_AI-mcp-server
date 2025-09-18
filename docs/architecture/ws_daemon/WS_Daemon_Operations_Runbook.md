@@ -46,7 +46,7 @@ Step B — Connect VS Code (Augment Code)
       "env": {
         "EXAI_WS_HOST": "127.0.0.1",
         "EXAI_WS_PORT": "8765",
-        "EXAI_SHIM_RPC_TIMEOUT": "30"
+        "EXAI_SHIM_RPC_TIMEOUT": "300"
       }
     }
   }
@@ -83,7 +83,7 @@ Notes
 - EXAI_WS_MAX_BYTES: 33554432 (32 MB frame limit)
 - EXAI_WS_PING_INTERVAL: 25 (seconds)
 - EXAI_WS_PING_TIMEOUT: 10 (seconds)
-- EXAI_WS_CALL_TIMEOUT: 120 (seconds per tool call)
+- EXAI_WS_CALL_TIMEOUT: 300 (seconds per tool call)
 - EXAI_WS_SESSION_MAX_INFLIGHT: 8 (per session concurrent calls)
 - EXAI_WS_GLOBAL_MAX_INFLIGHT: 24 (global concurrent calls)
 - EXAI_WS_KIMI_MAX_INFLIGHT: 6 (global cap for Kimi provider)
@@ -99,7 +99,7 @@ EXAI_WS_TOKEN=
 EXAI_WS_MAX_BYTES=33554432
 EXAI_WS_PING_INTERVAL=25
 EXAI_WS_PING_TIMEOUT=10
-EXAI_WS_CALL_TIMEOUT=120
+EXAI_WS_CALL_TIMEOUT=300
 EXAI_WS_SESSION_MAX_INFLIGHT=8
 EXAI_WS_GLOBAL_MAX_INFLIGHT=24
 EXAI_WS_KIMI_MAX_INFLIGHT=6
@@ -116,7 +116,7 @@ If you need comments, put them on their own line starting with `#`.
 
 ## 3) Environment variables (shim)
 - EXAI_WS_HOST/PORT/TOKEN must match daemon
-- EXAI_SHIM_RPC_TIMEOUT: 30 (seconds; shim waits for a tool response before retrying once)
+- EXAI_SHIM_RPC_TIMEOUT: 300 (seconds; shim waits for a tool response before retrying once)
 
 ## 4) Start/Stop
 - Start daemon (from repo root):
@@ -148,7 +148,7 @@ If you need comments, put them on their own line starting with `#`.
         "EXAI_WS_HOST": "127.0.0.1",
         "EXAI_WS_PORT": "8765",
         "EXAI_WS_TOKEN": "<optional-token>",
-        "EXAI_SHIM_RPC_TIMEOUT": "30"
+        "EXAI_SHIM_RPC_TIMEOUT": "300"
       }
     }
   }
@@ -169,7 +169,7 @@ If you need comments, put them on their own line starting with `#`.
         "EXAI_WS_HOST": "127.0.0.1",
         "EXAI_WS_PORT": "8765",
         "EXAI_WS_TOKEN": "<optional-token>",
-        "EXAI_SHIM_RPC_TIMEOUT": "30"
+        "EXAI_SHIM_RPC_TIMEOUT": "300"
       }
     }
   }
@@ -190,7 +190,7 @@ If you need comments, put them on their own line starting with `#`.
         "EXAI_WS_HOST": "127.0.0.1",
         "EXAI_WS_PORT": "8765",
         "EXAI_WS_TOKEN": "<optional-token>",
-        "EXAI_SHIM_RPC_TIMEOUT": "30"
+        "EXAI_SHIM_RPC_TIMEOUT": "300"
       }
     }
   }

@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "exai": {
+      "type": "stdio",
+      "trust": true,
+      "command": "C:/Project/EX-AI-MCP-Server/.venv/Scripts/python.exe",
+      "args": ["-u", "C:/Project/EX-AI-MCP-Server/scripts/run_ws_shim.py"],
+      "cwd": "C:/Project/EX-AI-MCP-Server",
+      "env": {
+        "AUGGIE_CLI": "true",
+        "ALLOW_AUGGIE": "true",
+        "ENV_FILE": "C:/Project/EX-AI-MCP-Server/.env",
+        "AUGGIE_CONFIG": "C:/Project/EX-AI-MCP-Server/auggie-config.json",
+        "PYTHONUNBUFFERED": "1",
+        "PYTHONIOENCODING": "utf-8",
+        "LOG_LEVEL": "INFO",
+        "EXAI_WS_HOST": "127.0.0.1",
+        "EXAI_WS_PORT": "8765",
+        "EXAI_SHIM_RPC_TIMEOUT": "150",
+        "EX_SESSION_SCOPE_STRICT": "true",
+        "EX_SESSION_SCOPE_ALLOW_CROSS_SESSION": "false"
+      }
+    }
+  }
+}
+

@@ -57,7 +57,7 @@ PING_TIMEOUT = int(os.getenv("EXAI_WS_PING_TIMEOUT", "30"))
 EXAI_WS_AUTOSTART = os.getenv("EXAI_WS_AUTOSTART", "true").strip().lower() == "true"
 EXAI_WS_CONNECT_TIMEOUT = float(os.getenv("EXAI_WS_CONNECT_TIMEOUT", "30"))
 EXAI_WS_HANDSHAKE_TIMEOUT = float(os.getenv("EXAI_WS_HANDSHAKE_TIMEOUT", "15"))
-EXAI_SHIM_ACK_GRACE_SECS = float(os.getenv("EXAI_SHIM_ACK_GRACE_SECS", "60"))
+EXAI_SHIM_ACK_GRACE_SECS = float(os.getenv("EXAI_SHIM_ACK_GRACE_SECS", "120"))
 
 server = Server(os.getenv("MCP_SERVER_ID", "ex-ws-shim"))
 
@@ -157,7 +157,7 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
             "arguments": arguments or {},
         }))
         # Read until matching request_id with timeout
-        timeout_s = float(os.getenv("EXAI_SHIM_RPC_TIMEOUT", "30"))
+        timeout_s = float(os.getenv("EXAI_SHIM_RPC_TIMEOUT", "300"))
         ack_grace = float(os.getenv("EXAI_SHIM_ACK_GRACE_SECS", "30"))
         deadline = asyncio.get_running_loop().time() + timeout_s
         while True:

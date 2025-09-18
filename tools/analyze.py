@@ -458,6 +458,20 @@ class AnalyzeTool(WorkflowTool):
 
     def _build_analysis_summary(self, consolidated_findings) -> str:
         """Prepare a comprehensive summary of the analysis investigation."""
+        summary_parts = [
+            "=== SYSTEMATIC ANALYSIS INVESTIGATION SUMMARY ===",
+            f"Total steps: {len(consolidated_findings.findings)}",
+            f"Files examined: {len(consolidated_findings.files_checked)}",
+            f"Relevant files identified: {len(consolidated_findings.relevant_files)}",
+            f"Code elements analyzed: {len(consolidated_findings.relevant_context)}",
+            "",
+            "=== INVESTIGATION PROGRESSION ===",
+        ]
+
+        for finding in consolidated_findings.findings:
+            summary_parts.append(finding)
+
+        return "\n".join(summary_parts)
 
     async def _call_expert_analysis(self, arguments: dict, request) -> dict:  # type: ignore[override]
         """
@@ -495,21 +509,6 @@ class AnalyzeTool(WorkflowTool):
         # If all retries failed, re-raise the last error
         assert last_err is not None
         raise last_err
-
-        summary_parts = [
-            "=== SYSTEMATIC ANALYSIS INVESTIGATION SUMMARY ===",
-            f"Total steps: {len(consolidated_findings.findings)}",
-            f"Files examined: {len(consolidated_findings.files_checked)}",
-            f"Relevant files identified: {len(consolidated_findings.relevant_files)}",
-            f"Code elements analyzed: {len(consolidated_findings.relevant_context)}",
-            "",
-            "=== INVESTIGATION PROGRESSION ===",
-        ]
-
-        for finding in consolidated_findings.findings:
-            summary_parts.append(finding)
-
-        return "\\n".join(summary_parts)
 
     def should_include_files_in_expert_prompt(self) -> bool:
         """Include files in expert analysis for comprehensive validation."""

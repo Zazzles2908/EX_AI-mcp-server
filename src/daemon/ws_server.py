@@ -101,9 +101,15 @@ _provider_sems: dict[str, asyncio.BoundedSemaphore] = {
 }
 # Track in-flight calls by semantic call key so duplicate calls can await the same result
 _inflight_by_key: dict[str, asyncio.Event] = {}
+# Track inflight request metadata for fast-fail duplicate responses and TTL cleanup
+_inflight_meta_by_key: dict[str, dict] = {}
 
 _shutdown = asyncio.Event()
 RESULT_TTL_SECS = int(os.getenv("EXAI_WS_RESULT_TTL", "600"))
+# TTL for inflight entries (seconds) — default to CALL_TIMEOUT so we don't hold keys longer than the daemon's ceiling
+INFLIGHT_TTL_SECS = int(os.getenv("EXAI_WS_INFLIGHT_TTL_SECS", str(CALL_TIMEOUT)))
+# Retry-after hint for capacity responses (seconds)
+RETRY_AFTER_SECS = int(os.getenv("EXAI_WS_RETRY_AFTER_SECS", "1"))
 _results_cache: dict[str, dict] = {}
 # Cache by semantic call key (tool name + normalized arguments) to survive req_id changes across reconnects
 _results_cache_by_key: dict[str, dict] = {}
@@ -269,7 +275,18 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
             await _safe_send(ws, cached)
             return
         # Semantic de-duplication: if client reconnects and reissues the same call with a new req_id, serve cached outputs
-        call_key = _make_call_key(name, arguments)
+        # Build a call_key that includes model and provider to reduce collisions across providers/models
+        try:
+            _args_for_key = dict(arguments)
+        except Exception:
+            _args_for_key = arguments or {}
+        # Include provider hint explicitly (may be empty if unknown)
+        if prov_key:
+            _args_for_key["__prov"] = prov_key
+        # Ensure model field is present for keying (if omitted by client, default model may be used)
+        if "model" not in _args_for_key and (arguments or {}).get("model"):
+            _args_for_key["model"] = arguments.get("model")
+        call_key = _make_call_key(name, _args_for_key)
         # Optional: disable semantic coalescing per tool via env EXAI_WS_DISABLE_COALESCE_FOR_TOOLS
         try:
             _disable_set = {s.strip().lower() for s in os.getenv("EXAI_WS_DISABLE_COALESCE_FOR_TOOLS", "").split(",") if s.strip()}
@@ -289,25 +306,27 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
             return
 
         # Coalesce duplicate semantic calls across reconnects: if another call with the same call_key is in-flight,
-        # wait for it to finish and serve its cached outputs instead of launching a second provider call.
-        if call_key in _inflight_by_key:
-            try:
-                await asyncio.wait_for(_inflight_by_key[call_key].wait(), timeout=CALL_TIMEOUT)
-                cached_outputs = _get_cached_by_key(call_key)
-                if cached_outputs is not None:
-                    payload = {"op": "call_tool_res", "request_id": req_id, "outputs": cached_outputs}
-                    await _safe_send(ws, payload)
-                    _store_result(req_id, payload)
-                    return
-            except asyncio.TimeoutError:
-                await _safe_send(ws, {
-                    "op": "call_tool_res",
-                    "request_id": req_id,
-                    "error": {"code": "TIMEOUT", "message": f"duplicate call_key timed out after {CALL_TIMEOUT}s"}
-                })
-                return
+        # fast-fail duplicates immediately with a 409-style response including the original request_id.
+        now_ts = time.time()
+        try:
+            meta = _inflight_meta_by_key.get(call_key)
+            # TTL cleanup: drop stale inflight entries
+            if meta and float(meta.get("expires_at", 0)) <= now_ts:
+                _inflight_meta_by_key.pop(call_key, None)
+                _inflight_by_key.pop(call_key, None)
+                meta = None
+        except Exception:
+            meta = None
+        if call_key in _inflight_by_key and meta:
+            await _safe_send(ws, {
+                "op": "call_tool_res",
+                "request_id": req_id,
+                "error": {"code": "DUPLICATE", "message": "duplicate call in flight", "original_request_id": meta.get("req_id")}
+            })
+            return
         else:
             _inflight_by_key[call_key] = asyncio.Event()
+            _inflight_meta_by_key[call_key] = {"req_id": req_id, "expires_at": now_ts + float(INFLIGHT_TTL_SECS)}
 
 
         try:
@@ -316,7 +335,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
             await _safe_send(ws, {
                 "op": "call_tool_res",
                 "request_id": req_id,
-                "error": {"code": "OVER_CAPACITY", "message": "Global concurrency limit reached; retry soon"}
+                "error": {"code": "OVER_CAPACITY", "message": "Global concurrency limit reached; retry soon", "retry_after": RETRY_AFTER_SECS}
             })
             return
         # Defer ACK until after provider+session capacity to ensure a single ACK per request
@@ -338,7 +357,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 await _safe_send(ws, {
                     "op": "call_tool_res",
                     "request_id": req_id,
-                    "error": {"code": "OVER_CAPACITY", "message": f"{prov_key} concurrency limit reached; retry soon"}
+                    "error": {"code": "OVER_CAPACITY", "message": f"{prov_key} concurrency limit reached; retry soon", "retry_after": RETRY_AFTER_SECS}
                 })
                 _global_sem.release()
                 return
@@ -353,8 +372,12 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 await _safe_send(ws, {
                     "op": "call_tool_res",
                     "request_id": req_id,
-                    "error": {"code": "OVER_CAPACITY", "message": "Session concurrency limit reached; retry soon"}
+                    "error": {"code": "OVER_CAPACITY", "message": "Session concurrency limit reached; retry soon", "retry_after": RETRY_AFTER_SECS}
                 })
+                try:
+                    _global_sem.release()
+                except Exception:
+                    pass
                 return
             start = time.time()
             # Single ACK after global+provider+session acquisition
@@ -427,6 +450,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                                 if call_key in _inflight_by_key:
                                     _inflight_by_key[call_key].set()
                                     _inflight_by_key.pop(call_key, None)
+                                _inflight_meta_by_key.pop(call_key, None)
                             except Exception:
                                 pass
                             return
@@ -454,6 +478,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                     if call_key in _inflight_by_key:
                         _inflight_by_key[call_key].set()
                         _inflight_by_key.pop(call_key, None)
+                    _inflight_meta_by_key.pop(call_key, None)
                 except Exception:
                     pass
             except asyncio.TimeoutError:
@@ -466,6 +491,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                     if call_key in _inflight_by_key:
                         _inflight_by_key[call_key].set()
                         _inflight_by_key.pop(call_key, None)
+                    _inflight_meta_by_key.pop(call_key, None)
                 except Exception:
                     pass
             except Exception as e:
@@ -478,6 +504,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                     if call_key in _inflight_by_key:
                         _inflight_by_key[call_key].set()
                         _inflight_by_key.pop(call_key, None)
+                    _inflight_meta_by_key.pop(call_key, None)
                 except Exception:
                     pass
         finally:

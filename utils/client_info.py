@@ -236,6 +236,37 @@ def get_client_friendly_name() -> str:
     return DEFAULT_FRIENDLY_NAME
 
 
+def get_current_session_fingerprint(arguments: Optional[dict[str, Any]] = None) -> Optional[str]:
+    """
+    Compute a stable session fingerprint for scoping conversation threads.
+
+    Priority:
+    1) WebSocket daemon session id injected as arguments["_session_id"] (ws:<uuid>)
+    2) Cached MCP client info (cli:<friendly_name>:<version>)
+
+    Returns None if no reasonable fingerprint can be determined.
+    """
+    try:
+        # 1) Prefer daemon-provided session id
+        if arguments and isinstance(arguments, dict):
+            sid = arguments.get("_session_id")
+            if isinstance(sid, str) and sid:
+                return f"ws:{sid}"
+        # 2) Fallback to cached MCP client info
+        ci = get_cached_client_info()
+        if ci:
+            friendly = ci.get("friendly_name") or ci.get("name") or "client"
+            ver = ci.get("version") or ""
+            # Keep it compact and stable
+            if ver:
+                return f"cli:{friendly}:{ver}"
+            return f"cli:{friendly}"
+    except Exception:
+        pass
+    return None
+
+
+
 def log_client_info(server: Any, logger_instance: Optional[logging.Logger] = None) -> None:
     """
     Log client information extracted from the server.

@@ -29,6 +29,9 @@ class BaseSimulatorTest:
 
         self.python_path = self._get_python_path()
 
+        # Maintain last continuation_id across calls for multi-step tools
+        self._last_continuation_id: Optional[str] = None
+
     def _get_python_path(self) -> str:
         """Get the Python path for the virtual environment"""
         current_dir = os.getcwd()
@@ -51,6 +54,64 @@ class BaseSimulatorTest:
         # Fallback to system python if venv doesn't exist
         self.logger.warning("Virtual environment not found, using system python")
         return "python"
+
+    def _enrich_params(self, tool_name: str, params: dict) -> dict:
+        """
+        Add explicit estimated_tokens for routing and propagate continuation_id for
+        multi-step workflow tools when not provided by the caller.
+        Safe: falls back silently on any import/parse error.
+        """
+        enriched = dict(params or {})
+
+        # 1) Inject estimated_tokens if absent
+        try:
+            if "estimated_tokens" not in enriched:
+                # Build text from messages or common prompt fields
+                text_parts: list[str] = []
+                msgs = enriched.get("messages")
+                if isinstance(msgs, list) and msgs:
+                    for m in msgs:
+                        try:
+                            if isinstance(m, dict):
+                                # Prefer content/text-like fields in typical schemas
+                                for k in ("content", "text", "prompt"):
+                                    v = m.get(k)
+                                    if isinstance(v, str):
+                                        text_parts.append(v)
+                                # Also accept role/name as light context
+                                for k in ("role", "name"):
+                                    v = m.get(k)
+                                    if isinstance(v, str):
+                                        text_parts.append(v)
+                            elif isinstance(m, str):
+                                text_parts.append(m)
+                        except Exception:
+                            continue
+                else:
+                    for k in ("prompt", "text", "content"):
+                        v = enriched.get(k)
+                        if isinstance(v, str):
+                            text_parts.append(v)
+                blob = " \n".join(text_parts) if text_parts else ""
+                # Prefer project estimator but fall back to heuristic
+                try:
+                    from utils.token_utils import estimate_tokens as _est
+
+                    enriched["estimated_tokens"] = int(_est(blob)) if blob else 0
+                except Exception:
+                    enriched["estimated_tokens"] = int(len(blob) // 4) if blob else 0
+        except Exception:
+            pass
+
+        # 2) Propagate continuation_id for workflow tools if caller omitted it
+        try:
+            looks_like_workflow = any(k in enriched for k in ("step", "step_number", "total_steps", "next_step_required", "findings"))
+            if looks_like_workflow and "continuation_id" not in enriched and getattr(self, "_last_continuation_id", None):
+                enriched["continuation_id"] = self._last_continuation_id
+        except Exception:
+            pass
+
+        return enriched
 
     def setup_test_files(self):
         """Create test files for the simulation"""
@@ -127,6 +188,9 @@ class Calculator:
     def call_mcp_tool(self, tool_name: str, params: dict) -> tuple[Optional[str], Optional[str]]:
         """Call an MCP tool via standalone server"""
         try:
+            # Enrich params with estimated_tokens and continuation_id when applicable
+            params = self._enrich_params(tool_name, params)
+
             # Prepare the MCP initialization and tool call sequence
             init_request = {
                 "jsonrpc": "2.0",
@@ -188,6 +252,10 @@ class Calculator:
 
             # Extract continuation_id if present
             continuation_id = self._extract_continuation_id(response_data)
+
+            # Persist for subsequent workflow calls if available
+            if continuation_id:
+                self._last_continuation_id = continuation_id
 
             return response_data, continuation_id
 
