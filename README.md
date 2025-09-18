@@ -13,13 +13,15 @@ EX MCP Server is a Model Context Protocol (MCP) server that connects modern LLM 
   - analyze, codereview, debug, refactor, tracer, testgen, precommit, listmodels, version
 - Provider integrations:
 
+
+  - KIMI (Moonshot), GLM (Zhipu), OpenRouter, and custom OpenAI‑compatible endpoints
+
 ## Quick Links
 - O&M Manual: [docs/o_and_m_manual/](docs/o_and_m_manual/)
 - Chat Sheet: [docs/o_and_m_manual/CHAT_SHEET.md](docs/o_and_m_manual/CHAT_SHEET.md)
 - Augment Code Guidelines (EXAI‑MCP default): [docs/policies/AUGMENT_CODE_GUIDELINES.md](docs/policies/AUGMENT_CODE_GUIDELINES.md)
 - Sweep Reports: [docs/sweep_reports/](docs/sweep_reports/)
 
-  - KIMI (Moonshot), GLM (Zhipu), OpenRouter, and custom OpenAI‑compatible endpoints
 - MCP‑first architecture:
   - Subprocess stdio transport with direct config examples for Claude Desktop/CLI
 - Docker and local dev support:
