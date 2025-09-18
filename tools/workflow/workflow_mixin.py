@@ -248,9 +248,17 @@ class BaseWorkflowMixin(ABC):
 
     def get_expert_heartbeat_interval_secs(self, request=None) -> float:
         """Interval in seconds for emitting progress while waiting on expert analysis.
-        Default from env EXPERT_HEARTBEAT_INTERVAL_SECS (seconds), fallback 10.
+        Priority: EXAI_WS_EXPERT_KEEPALIVE_MS (ms) > EXPERT_HEARTBEAT_INTERVAL_SECS (s) > 10s default.
         """
         import os
+        try:
+            ms = os.getenv("EXAI_WS_EXPERT_KEEPALIVE_MS", "").strip()
+            if ms:
+                val = float(ms) / 1000.0
+                if val > 0:
+                    return max(0.5, val)
+        except Exception:
+            pass
         try:
             return float(os.getenv("EXPERT_HEARTBEAT_INTERVAL_SECS", "10"))
         except Exception:
@@ -1693,6 +1701,18 @@ class BaseWorkflowMixin(ABC):
             else:
                 prompt = expert_context
 
+            # Optional micro-step draft phase: return early to avoid long expert blocking
+            try:
+                import os as _os
+                if (_os.getenv("EXAI_WS_EXPERT_MICROSTEP", "false").strip().lower() == "true"):
+                    try:
+                        send_progress(f"{self.get_name()}: Expert micro-step draft returned early; schedule validate phase next")
+                    except Exception:
+                        pass
+                    return {"status": "analysis_partial", "microstep": "draft", "raw_analysis": ""}
+            except Exception:
+                pass
+
             # Validate temperature against model constraints
             validated_temperature, temp_warnings = self.get_validated_temperature(request, self._model_context)
 
@@ -1700,8 +1720,14 @@ class BaseWorkflowMixin(ABC):
             for warning in temp_warnings:
                 logger.warning(warning)
 
-            # Watchdog: hard limit expert call wall time via incremental non-blocking check
-            deadline = time.time() + self.get_expert_timeout_secs(request)
+            # Watchdog and soft-deadline setup
+            start = time.time()
+            try:
+                import os as _os
+                _soft_dl = float((_os.getenv("EXAI_WS_EXPERT_SOFT_DEADLINE_SECS", "0") or "0").strip() or 0)
+            except Exception:
+                _soft_dl = 0.0
+            deadline = start + self.get_expert_timeout_secs(request)
 
             # Run provider call in a thread to allow cancellation/timeouts even if provider blocks
             loop = asyncio.get_running_loop()
@@ -1720,6 +1746,7 @@ class BaseWorkflowMixin(ABC):
             # Poll until done or deadline; emit progress breadcrumbs so UI stays alive
             hb = max(5.0, self.get_expert_heartbeat_interval_secs(request))
             while True:
+                # Check completion first
                 if task.done():
                     try:
                         model_response = task.result()
@@ -1764,20 +1791,43 @@ class BaseWorkflowMixin(ABC):
                                     if fb_task.done():
                                         model_response = fb_task.result()
                                         break
-                                    if time.time() >= deadline:
+                                    now_fb = time.time()
+                                    # Soft-deadline early return with partial to avoid client cancel
+                                    if _soft_dl and (now_fb - start) >= _soft_dl:
+                                        logger.warning("Expert analysis fallback soft-deadline reached; returning partial result early")
+                                        return {"status":"analysis_partial","soft_deadline_exceeded": True, "raw_analysis": ""}
+                                    if now_fb >= deadline:
+                                        try:
+                                            fb_task.cancel()
+                                        except Exception:
+                                            pass
                                         logger.error("Expert analysis fallback timed out; returning partial context-only result")
                                         return {"status":"analysis_timeout","error":"Expert analysis exceeded timeout","raw_analysis":""}
                                     try:
                                         send_progress(f"{self.get_name()}: Waiting on expert analysis (provider=kimi)...")
                                     except Exception:
                                         pass
-                                    await asyncio.sleep(hb)
+                                    # Sleep only up to remaining time
+                                    await asyncio.sleep(min(hb, max(0.1, deadline - now_fb)))
                                 break
                         # No fallback or still failing - re-raise to outer handler
                         raise
                     break
+
                 now = time.time()
+                # Soft-deadline early return with partial to avoid client cancel
+                if _soft_dl and (now - start) >= _soft_dl:
+                    logger.warning("Expert analysis soft-deadline reached; returning partial result early")
+                    return {
+                        "status": "analysis_partial",
+                        "soft_deadline_exceeded": True,
+                        "raw_analysis": "",
+                    }
                 if now >= deadline:
+                    try:
+                        task.cancel()
+                    except Exception:
+                        pass
                     logger.error("Expert analysis timed out; returning partial context-only result")
                     return {
                         "status": "analysis_timeout",
@@ -1789,7 +1839,8 @@ class BaseWorkflowMixin(ABC):
                     send_progress(f"{self.get_name()}: Waiting on expert analysis (provider={provider.get_provider_type().value})...")
                 except Exception:
                     pass
-                await asyncio.sleep(hb)
+                # Sleep only up to remaining time to avoid overshooting deadline
+                await asyncio.sleep(min(hb, max(0.1, deadline - time.time())))
 
 
             if model_response.content:

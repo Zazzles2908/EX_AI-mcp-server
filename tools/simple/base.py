@@ -19,6 +19,10 @@ from tools.shared.base_models import ToolRequest
 from tools.shared.base_tool import BaseTool
 from tools.shared.schema_builders import SchemaBuilder
 
+from mcp.types import TextContent
+
+from utils.client_info import get_current_session_fingerprint, get_cached_client_info, format_client_info
+
 
 class SimpleTool(BaseTool):
     """
@@ -284,7 +288,6 @@ class SimpleTool(BaseTool):
         import json
         import logging
 
-        from mcp.types import TextContent
 
         from tools.models import ToolOutput
 
@@ -510,12 +513,29 @@ class SimpleTool(BaseTool):
                 logger.info(f"Using fallback chain for category {tool_category.name}")
                 # Derive simple hints for context-aware routing
                 hints = []
+                # Content-derived hints
                 try:
-                    u = self.get_request_prompt(request).lower()
+                    u = (self.get_request_prompt(request) or "").lower()
                     if any(k in u for k in ("image", "diagram", "vision")):
                         hints.append("vision")
                     if any(k in u for k in ("think", "reason", "chain of thought", "deep")):
                         hints.append("deep_reasoning")
+                except Exception:
+                    pass
+                # Context-size hint (Option 2: dispatch metadata)
+                try:
+                    if estimated_tokens and int(estimated_tokens) > 48000:
+                        hints.append("long_context")
+                        hints.append(f"estimated_tokens:{int(estimated_tokens)}")
+                except Exception:
+                    pass
+                # Raw user-prompt size hint (pre-shaping): if the original user prompt itself is huge
+                try:
+                    user_prompt_raw = self.get_request_prompt(request) or ""
+                    raw_tokens = estimate_tokens(user_prompt_raw)
+                    if int(raw_tokens) > 48000:
+                        hints.append("long_context")
+                        hints.append(f"estimated_tokens:{int(raw_tokens)}")
                 except Exception:
                     pass
                 model_response = _Registry.call_with_fallback(tool_category, _call_with_model, hints=hints)
@@ -762,7 +782,21 @@ class SimpleTool(BaseTool):
                 # Convert request to dict for initial_context
                 initial_request_dict = self.get_request_as_dict(request)
 
-                new_thread_id = create_thread(tool_name=self.get_name(), initial_request=initial_request_dict)
+                # Compute session fingerprint and friendly client name (for scoping and UX)
+                try:
+                    current_args = getattr(self, "_current_arguments", {})
+                    sess_fp = get_current_session_fingerprint(current_args)
+                    ci = get_cached_client_info()
+                    friendly = format_client_info(ci) if ci else None
+                except Exception:
+                    sess_fp, friendly = None, None
+
+                new_thread_id = create_thread(
+                    tool_name=self.get_name(),
+                    initial_request=initial_request_dict,
+                    session_fingerprint=sess_fp,
+                    client_friendly_name=friendly,
+                )
 
                 # Add the initial user turn to the new thread
                 from utils.conversation_memory import MAX_CONVERSATION_TURNS, add_turn
@@ -776,10 +810,11 @@ class SimpleTool(BaseTool):
                     new_thread_id, "user", user_prompt, files=user_files, images=user_images, tool_name=self.get_name()
                 )
 
+                note_client = friendly or "Claude"
                 return {
                     "continuation_id": new_thread_id,
                     "remaining_turns": MAX_CONVERSATION_TURNS - 1,
-                    "note": f"Claude can continue this conversation for {MAX_CONVERSATION_TURNS - 1} more exchanges.",
+                    "note": f"{note_client} can continue this conversation for {MAX_CONVERSATION_TURNS - 1} more exchanges.",
                 }
         except Exception:
             return None

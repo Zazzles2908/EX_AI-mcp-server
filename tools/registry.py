@@ -64,6 +64,8 @@ TOOL_MAP: Dict[str, tuple[str, str]] = {
     "autopilot": ("tools.autopilot", "AutopilotTool"),
     # Browse orchestrator (alias to autopilot)
     "browse_orchestrator": ("tools.autopilot", "AutopilotTool"),
+    # Streaming demo (utility)
+    "stream_demo": ("tools.stream_demo", "StreamDemoTool"),
 
 }
 # Visibility map for tools: 'core' | 'advanced' | 'hidden'
@@ -96,6 +98,7 @@ TOOL_VISIBILITY = {
     "secaudit": "advanced",
     "tracer": "advanced",
     "precommit": "advanced",
+    "stream_demo": "advanced",
     # Hidden/internal
     "toolcall_log_tail": "hidden",
     "health": "hidden",
@@ -137,8 +140,9 @@ class ToolRegistry:
         else:
             active = set(TOOL_MAP.keys())
 
-        # Ensure utilities are always on
-        active.update({"version", "listmodels"})
+        # Ensure utilities are always on unless STRICT_LEAN is enabled
+        if os.getenv("STRICT_LEAN", "false").strip().lower() != "true":
+            active.update({"version", "listmodels"})
 
         # Remove disabled
         active = {t for t in active if t not in disabled}

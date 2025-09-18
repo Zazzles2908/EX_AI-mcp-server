@@ -190,6 +190,8 @@ class ThreadContext(BaseModel):
         tool_name: Name of the tool that initiated this thread
         turns: List of all conversation turns in chronological order
         initial_context: Original request data that started the conversation
+        session_fingerprint: Optional session fingerprint to scope this thread
+        client_friendly_name: Optional friendly client name (e.g., "Claude", "VS Code")
     """
 
     thread_id: str
@@ -199,6 +201,8 @@ class ThreadContext(BaseModel):
     tool_name: str  # Tool that created this thread (preserved for attribution)
     turns: list[ConversationTurn]
     initial_context: dict[str, Any]  # Original request parameters
+    session_fingerprint: Optional[str] = None
+    client_friendly_name: Optional[str] = None
 
 
 def get_storage():
@@ -213,7 +217,13 @@ def get_storage():
     return get_storage_backend()
 
 
-def create_thread(tool_name: str, initial_request: dict[str, Any], parent_thread_id: Optional[str] = None) -> str:
+def create_thread(
+    tool_name: str,
+    initial_request: dict[str, Any],
+    parent_thread_id: Optional[str] = None,
+    session_fingerprint: Optional[str] = None,
+    client_friendly_name: Optional[str] = None,
+) -> str:
     """
     Create new conversation thread and return thread ID
 
@@ -225,6 +235,8 @@ def create_thread(tool_name: str, initial_request: dict[str, Any], parent_thread
         tool_name: Name of the tool creating this thread (e.g., "analyze", "chat")
         initial_request: Original request parameters (will be filtered for serialization)
         parent_thread_id: Optional parent thread ID for conversation chains
+        session_fingerprint: Optional session fingerprint to scope this thread
+        client_friendly_name: Optional friendly client label for logging/UX
 
     Returns:
         str: UUID thread identifier that can be used for continuation
@@ -253,6 +265,8 @@ def create_thread(tool_name: str, initial_request: dict[str, Any], parent_thread
         tool_name=tool_name,  # Track which tool initiated this conversation
         turns=[],  # Empty initially, turns added via add_turn()
         initial_context=filtered_context,
+        session_fingerprint=session_fingerprint,
+        client_friendly_name=client_friendly_name,
     )
 
     # Store in memory with configurable TTL to prevent indefinite accumulation

@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EXAI‑MCP Model Routing, Mode Selection, and Execution Flow</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; line-height: 1.5; }
+    h1, h2, h3 { line-height: 1.2; }
+    code, pre { background: #f6f8fa; border-radius: 6px; padding: 2px 4px; }
+    pre { padding: 12px; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+    th, td { border: 1px solid #e1e4e8; padding: 8px; text-align: left; }
+    .note { background: #fff8e1; border: 1px solid #ffe082; padding: 10px; border-radius: 6px; }
+    .fine { color: #586069; font-size: 0.95em; }
+    .export-controls { margin: 6px 0 16px; }
+    .export-controls button { margin-right: 8px; padding: 6px 10px; font-size: .9rem; }
+    #export-all-wrap { margin: 12px 0 20px; }
+
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'default' });</script>
+
+
+
+
+</head>
+<body>
+  <h1>EXAI‑MCP Model Routing, Mode Selection, and Execution Flow</h1>
+  <p class="fine">Phase D · Living document · Last updated: 2025‑09‑16</p>
+
+
+  <div id="export-all-wrap">
+    <button id="export-all">Export ALL diagrams (PNG)</button>
+    <span style="margin-left:8px; color:#666;">Tip: You can also export each diagram below.</span>
+  </div>
+
+  <h2>TL;DR</h2>
+  <ul>
+    <li>Explicit model wins; otherwise tool‑specific defaults choose provider/model.</li>
+
+
+
+
+    <li>Expert mode is stabilized by micro‑steps (draft partials) + keepalive; soft‑deadline‑only can time out clients.</li>
+    <li>Conversation threads are session‑scoped; cross‑session reuse blocked by default.</li>
+  </ul>
+
+  <h2>Decision tree (routing + execution)</h2>
+  <div class="mermaid">
+flowchart TD
+  Req[Tool Request] -->|explicit model?| Explicit{Explicit?}
+  Explicit -- yes --> Use[Use requested model/provider]
+  Explicit -- no --> Defaults[Tool defaults]
+  Defaults --> Avail{Provider up & model supported?}
+  Avail -- no --> Fallback[Fallback to default]
+  Fallback --> Avail
+  Avail -- still no --> Error[Validation error]
+  Avail -- yes --> Expert{expert=true?}
+  Expert -- no --> Direct[Direct call]
+  Expert -- yes --> Micro{MICROSTEP?}
+  Micro -- yes --> Drafts[Draft partials + keepalive]
+  Micro -- no --> Full[Full expert w/ soft-deadline]
+  Drafts --> End
+  Full --> End
+  Direct --> End
+  End --> Summary[MCP_CALL_SUMMARY]
+  </div>
+
+  <h2>Defaults table (current examples)</h2>
+  <table>
+    <thead><tr><th>Tool group</th><th>Default provider/model</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>chat, testgen, tracer</td><td>GLM → <code>glm-4.5-flash</code></td><td>Low latency conversational / light tasks</td></tr>
+      <tr><td>analyze, thinkdeep, codereview, debug, refactor</td><td>Kimi → <code>kimi-k2-0905</code></td><td>Deeper reasoning; pair with micro‑steps for stability</td></tr>
+      <tr><td>planner (steps)</td><td>GLM → <code>glm-4.5-flash</code></td><td>Fast step planning</td></tr>
+      <tr><td>planner (summary)</td><td>Kimi → <code>kimi-k2-0905</code></td><td>Higher‑quality synthesis</td></tr>
+    </tbody>
+  </table>
+  <p>Priority: <strong>explicit request</strong> &gt; <strong>env overrides</strong> &gt; <strong>tool defaults</strong>.</p>
+
+  <h2>Expert timing (sequence)</h2>
+  <pre class="mermaid">
+sequenceDiagram
+  participant Client
+  participant Server
+  Client->>Server: TOOL_CALL (expert=true)
+  Server-->>Client: keepalive (every EXAI_WS_EXPERT_KEEPALIVE_MS)
+  loop micro-steps
+    Server-->>Client: draft partial
+  end
+  alt before deadline
+    Server-->>Client: final
+  else deadline reached
+    Server-->>Client: best partial
+  end
+  </pre>
+
+  <h2>Examples (from recent logs)</h2>
+  <h3>Analyze → expert wait (Kimi)</h3>
+  <pre>[PROGRESS] analyze: Waiting on expert analysis (provider=kimi)...</pre>
+
+  <h3>Analyze → expert wait (GLM), then cancellation</h3>
+  <pre>[PROGRESS] analyze: Waiting on expert analysis (provider=glm)...
+TOOL_CANCELLED: analyze req_id=329d9d77-97ec-4055-8f21-86ab4052d204</pre>
+
+  <h3>Chat → default model ready</h3>
+  <pre>[PROGRESS] chat: Model/context ready: glm-4.5-flash
+TOOL_COMPLETED: chat req_id=... progress=3/4</pre>
+
+  <h3>Final model summary</h3>
+  <pre>MCP_CALL_SUMMARY: tool=analyze status=COMPLETE ... model=glm-4.5-flash ... expert=Completed
+MCP_CALL_SUMMARY: tool=analyze status=COMPLETE ... model=kimi-latest ... expert=Completed
+MCP_CALL_SUMMARY: tool=codereview status=COMPLETE ... model=glm-4.5-flash ... expert=Disabled</pre>
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li>Timeouts/Client aborts: set <code>EXAI_WS_EXPERT_MICROSTEP=true</code>, <code>EXAI_WS_EXPERT_SOFT_DEADLINE_SECS ≥ 120</code>, and <code>EXAI_WS_EXPERT_KEEPALIVE_MS≈1500</code>.</li>
+    <li>Validation errors: provide required fields (e.g., <code>relevant_files</code> for codereview/testgen), remove unsupported params.</li>
+    <li>Provider/model errors: if explicit model unsupported, fall back to tool default or switch provider; check throttling.</li>
+    <li>Cross‑session concerns: ensure <code>EX_SESSION_SCOPE_STRICT=true</code> and unique <code>continuation_id</code> per window.</li>
+  </ul>
+
+  <h2>Glossary</h2>
+  <ul>
+    <li><strong>Micro‑steps</strong>: expert sub‑iterations streaming drafts to keep clients alive.</li>
+    <li><strong>Soft deadline</strong>: time budget after which best‑available partial is emitted.</li>
+    <li><strong>Keepalive</strong>: heartbeat messages preventing idle disconnects.</li>
+    <li><strong>Continuation ID</strong>: conversation thread identifier, validated against session fingerprint.</li>
+  </ul>
+
+  <p class="note">Note: Mermaid diagrams require an internet connection to load the CDN script above.</p>
+  <h2>Per-tool legend</h2>
+  <table>
+    <thead><tr><th>Tool</th><th>Purpose (1-liner)</th><th>Default model</th><th>Expert recommended?</th></tr></thead>
+    <tbody>
+      <tr><td>chat</td><td>Conversational Q&A with optional files</td><td>glm-4.5-flash</td><td>No (optional)</td></tr>
+      <tr><td>analyze</td><td>Structured deep analysis</td><td>kimi-k2-0905</td><td>Yes (micro-steps)</td></tr>
+      <tr><td>codereview</td><td>Actionable code review</td><td>kimi-k2-0905 / glm-4.5-flash</td><td>Often</td></tr>
+      <tr><td>debug</td><td>Root-cause investigation</td><td>kimi-k2-0905 / glm-4.5-flash</td><td>Often</td></tr>
+      <tr><td>testgen</td><td>Generate tests with edge cases</td><td>glm-4.5-flash</td><td>Optional</td></tr>
+      <tr><td>planner</td><td>Break down complex tasks</td><td>glm-4.5-flash → kimi summary</td><td>Optional</td></tr>
+      <tr><td>tracer</td><td>Trace execution or dependencies</td><td>glm-4.5-flash</td><td>Optional</td></tr>
+      <tr><td>thinkdeep</td><td>Multi-stage synthesis/strategy</td><td>kimi (final) / glm (steps)</td><td>Often</td></tr>
+      <tr><td>secaudit</td><td>Security audit (OWASP/compliance)</td><td>kimi-k2-0905</td><td>Yes</td></tr>
+      <tr><td>refactor</td><td>Code smells and improvements</td><td>kimi-k2-0905 / glm-4.5-flash</td><td>Often</td></tr>
+      <tr><td>consensus</td><td>Aggregate multiple stances</td><td>glm-4.5-flash → kimi synth</td><td>Optional</td></tr>
+      <tr><td>status</td><td>Health/config snapshot</td><td>glm-4.5-flash</td><td>No</td></tr>
+      <tr><td>version</td><td>Server/provider versions</td><td>glm-4.5-flash</td><td>No</td></tr>
+      <tr><td>activity</td><td>Lightweight activity ping</td><td>glm-4.5-flash</td><td>No</td></tr>
+      <tr><td>listmodels</td><td>List models/providers</td><td>glm-4.5-flash</td><td>No</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Current architecture (compact view)</h2>
+  <pre class="mermaid">
+flowchart LR
+  Req[Tool Request] -->|explicit model?| Explicit{Explicit?}
+  Explicit -- yes --> Use[Use requested model/provider]
+  Explicit -- no --> Defaults[Tool defaults]
+  Defaults --> Avail{Provider up & model supported?}
+  Avail -- no --> Fallback[Fallback to default]
+  Fallback --> Avail
+  Avail -- still no --> Error[Validation error]
+  Avail -- yes --> Expert{expert=true?}
+  Expert -- no --> Direct[Direct call]
+  Expert -- yes --> Micro{MICROSTEP?}
+  Micro -- yes --> Drafts[Draft partials + keepalive]
+  Micro -- no --> Full[Full expert w/ soft-deadline]
+  Drafts --> End
+  Full --> End
+  Direct --> End
+  End --> Summary[MCP_CALL_SUMMARY]
+  </pre>
+  <script>
+    (function(){
+      function slugify(s){
+        return (s||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'');
+      }
+      function headingFor(el){
+        let p = el;
+        while (p){
+          let prev = p.previousElementSibling;
+          while (prev){
+            if (/^H[1-4]$/.test(prev.tagName)) return prev.textContent.trim();
+            prev = prev.previousElementSibling;
+          }
+          p = p.parentElement;
+        }
+        return '';
+      }
+      function downloadBlob(filename, mime, data){
+        const blob = new Blob([data], {type: mime});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0);
+      }
+      function ensureSvgXmlns(svg){
+        if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+        if (!svg.getAttribute('xmlns:xlink')) svg.setAttribute('xmlns:xlink','http://www.w3.org/1999/xlink');
+      }
+      function downloadSVG(svg, filename){
+        const clone = svg.cloneNode(true);
+        ensureSvgXmlns(clone);
+        const xml = new XMLSerializer().serializeToString(clone);
+        downloadBlob(filename.endsWith('.svg')? filename : filename + '.svg', 'image/svg+xml;charset=utf-8', xml);
+      }
+      function downloadPNG(svg, filename){
+        const rect = svg.getBoundingClientRect();
+        const scale = 2;
+        const w = Math.max(1, Math.ceil(rect.width));
+        const h = Math.max(1, Math.ceil(rect.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = w * scale; canvas.height = h * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+        const clone = svg.cloneNode(true);
+        ensureSvgXmlns(clone);
+        const xml = new XMLSerializer().serializeToString(clone);
+        const img = new Image();
+        img.onload = function(){
+          ctx.clearRect(0,0,w,h);
+          ctx.drawImage(img, 0, 0);
+          const url = canvas.toDataURL('image/png');
+          const a = document.createElement('a');
+          a.href = url; a.download = (filename.endsWith('.png')? filename : filename + '.png');
+          document.body.appendChild(a); a.click(); a.remove();
+        };
+        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+      }
+      function addControls(wrapperEl, svgEl, index){
+        const name = headingFor(wrapperEl) || ('diagram-' + (index+1));
+        const base = slugify(name) || ('diagram-' + (index+1));
+        const controls = document.createElement('div');
+        controls.className = 'export-controls';
+        const btnSvg = document.createElement('button'); btnSvg.textContent = 'Download SVG';
+        const btnPng = document.createElement('button'); btnPng.textContent = 'Download PNG';
+        btnSvg.addEventListener('click', ()=> downloadSVG(svgEl, base + '.svg'));
+        btnPng.addEventListener('click', ()=> downloadPNG(svgEl, base + '.png'));
+        controls.appendChild(btnSvg); controls.appendChild(btnPng);
+        wrapperEl.parentNode.insertBefore(controls, wrapperEl.nextSibling);
+      }
+      function init(){
+        const wrappers = [];
+        // Mermaid v10 renders <div class="mermaid"><svg/></div>. Our source uses <pre class="mermaid"> as well.
+        document.querySelectorAll('.mermaid').forEach(m => {
+          const svg = m.querySelector('svg');
+          if (svg) wrappers.push({wrapper: m, svg});
+        });
+        wrappers.forEach((w, i)=> addControls(w.wrapper, w.svg, i));
+        const exportAll = document.getElementById('export-all');
+        if (exportAll){
+          exportAll.addEventListener('click', ()=> {
+            wrappers.forEach((w, i)=> setTimeout(()=> downloadPNG(w.svg, (slugify(headingFor(w.wrapper))||('diagram-'+(i+1))) + '.png'), i*400));
+          });
+        }
+      }
+      // Wait a tick for Mermaid to render
+      window.addEventListener('load', ()=> setTimeout(init, 600));
+    })();
+  </script>
+
+
+  <h2>Future target architecture (policy-based routing)</h2>
+  <div class="mermaid">
+flowchart LR
+  A[Tool Request] --> B[Policy Router]
+  B --> C{Profile: speed or depth}
+  C --> D{Tool Policy}
+  D --> E[Provider Fallback Chain]
+  E --> F{Cap/Health Check}
+  F -- pass --> G{Expert Strategy: Adaptive Micro-steps}
+  F -- fail --> E
+  G --> H{Budget/Deadline Manager}
+  H --> I[Streaming drafts and final + Keepalive]
+  I --> J[Unified Error Taxonomy]
+  J --> K[Observability: MCP_CALL_SUMMARY + Cost & Tokens]
+  K --> L[Final Output]
+  </div>
+
+</body>
+</html>
+

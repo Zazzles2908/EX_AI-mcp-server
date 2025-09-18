@@ -15,11 +15,19 @@ and use SchemaBuilder for consistent schema generation.
 from abc import abstractmethod
 from typing import Any, Optional
 
+# Added: safe timeout/logging support for workflow execution
+import asyncio
+import json
+import logging
+import os
+
 from tools.shared.base_models import WorkflowRequest
 from tools.shared.base_tool import BaseTool
 
 from .schema_builders import WorkflowSchemaBuilder
 from .workflow_mixin import BaseWorkflowMixin
+
+logger = logging.getLogger(__name__)
 
 
 class WorkflowTool(BaseTool, BaseWorkflowMixin):
@@ -477,5 +485,86 @@ class WorkflowTool(BaseTool, BaseWorkflowMixin):
 
     # Default execute method - delegates to workflow
     async def execute(self, arguments: dict[str, Any]) -> list:
-        """Execute the workflow tool - delegates to BaseWorkflowMixin."""
-        return await self.execute_workflow(arguments)
+        """Execute the workflow tool with a safety timeout and error logging.
+
+        - Wraps execute_workflow() in asyncio.wait_for to prevent hangs
+        - Timeout is controlled via WORKFLOW_STEP_TIMEOUT_SECS (default 45s)
+        - On timeout, logs to centralized error sink and returns a structured error
+        """
+        timeout_default = 45.0
+        try:
+            # Adaptive per-step timeout: larger for final steps with expert validation
+            req = None
+            try:
+                req_model = self.get_workflow_request_model()
+                req = req_model(**arguments) if req_model else None
+            except Exception:
+                req = None
+
+            # Determine if this is the final step
+            try:
+                is_final = bool(req and getattr(req, "next_step_required", True) is False)
+            except Exception:
+                is_final = bool(not (arguments or {}).get("next_step_required", True))
+
+            # Determine whether expert validation is requested
+            try:
+                use_assistant = self.get_request_use_assistant_model(req) if req is not None else True
+            except Exception:
+                # Fallback to env default when request model isn't available
+                _env = (os.getenv("DEFAULT_USE_ASSISTANT_MODEL") or "").strip().lower()
+                use_assistant = _env not in ("false", "0", "no", "off")
+
+            if is_final and use_assistant:
+                # For final expert step: cap by expert budget + buffer, under WS ceiling
+                try:
+                    expert_budget = float(self.get_expert_timeout_secs(req))
+                except Exception:
+                    expert_budget = 90.0
+                try:
+                    ws_ceiling = float(os.getenv("EXAI_WS_CALL_TIMEOUT", "180"))
+                except Exception:
+                    ws_ceiling = 180.0
+                timeout = max(5.0, min(expert_budget + 30.0, ws_ceiling - 5.0))
+            else:
+                # For intermediate steps: use workflow step timeout
+                timeout = float(os.getenv("WORKFLOW_STEP_TIMEOUT_SECS", str(timeout_default)))
+        except Exception:
+            timeout = timeout_default
+
+        try:
+            return await asyncio.wait_for(self.execute_workflow(arguments), timeout=timeout)
+        except asyncio.TimeoutError:
+            # Log error to centralized error sink
+            try:
+                logger.error(f"{self.get_name()} workflow step timed out after {timeout}s", exc_info=True)
+            except Exception:
+                pass
+            # Return a structured MCP-safe error payload
+            try:
+                from mcp.types import TextContent
+                error_payload = {
+                    "status": f"{self.get_name()}_timeout",
+                    "error": f"Workflow step exceeded {timeout} seconds",
+                    "step_number": arguments.get("step_number"),
+                }
+                return [TextContent(type="text", text=json.dumps(error_payload))]
+            except Exception:
+                # Fallback minimal shape
+                return [{"type": "text", "text": json.dumps({"status": f"{self.get_name()}_timeout"})}]
+        except Exception as e:
+            # Ensure unexpected errors are logged and surfaced
+            try:
+                logger.error(f"{self.get_name()} workflow execution error: {e}", exc_info=True)
+            except Exception:
+                pass
+            try:
+                from mcp.types import TextContent
+                error_payload = {
+                    "status": f"{self.get_name()}_failed",
+                    "error": str(e),
+                    "step_number": arguments.get("step_number"),
+                }
+                return [TextContent(type="text", text=json.dumps(error_payload))]
+            except Exception:
+                return [{"type": "text", "text": json.dumps({"status": f"{self.get_name()}_failed"})}]

@@ -603,23 +603,64 @@ class ModelProviderRegistry:
                 continue
         # Simple context-aware biasing: if hints provided, move matching models earlier
         if hints:
-            low = {m.lower(): m for m in chain}
-            priorities = []
-            # Keywords → model families
-            for h in [s.lower() for s in hints if isinstance(s, str)]:
-                if any(k in h for k in ("vision", "image", "diagram")):
-                    for cand in ("glm-4.5v",):
-                        m = low.get(cand)
-                        if m and m not in priorities:
-                            priorities.append(m)
-                if any(k in h for k in ("think", "reason", "chain of thought", "cot", "deep")):
-                    for cand in ("kimi-k2-thinking", "kimi-k2-0711-preview", "glm-4.5-airx"):
-                        m = low.get(cand)
-                        if m and m not in priorities:
-                            priorities.append(m)
-            # Reorder: prioritized models first, keep relative order for the rest
-            rest = [m for m in chain if m not in priorities]
-            chain = priorities + rest
+            # Normalize incoming hints
+            hints_norm = [str(s).lower() for s in hints if isinstance(s, (str, int, float))]
+            # Detect explicit long-context intent or large estimated_tokens
+            want_long_context = any("long_context" in h for h in hints_norm)
+            est_tokens = None
+            for h in hints_norm:
+                # parse patterns like "estimated_tokens:123456" or "estimated_tokens=123456"
+                for sep in (":", "="):
+                    if h.startswith(f"estimated_tokens{sep}"):
+                        try:
+                            est_tokens = int(h.split(sep, 1)[1])
+                        except Exception:
+                            pass
+            if est_tokens is not None and est_tokens > 48000:
+                want_long_context = True
+
+            # Build priorities list for specific keyword families
+            priorities: list[str] = []
+            if any(any(k in h for k in ("vision", "image", "diagram")) for h in hints_norm):
+                low = {m.lower(): m for m in order}
+                for cand in ("glm-4.5v",):
+                    m = low.get(cand)
+                    if m and m not in priorities:
+                        priorities.append(m)
+
+            if any(any(k in h for k in ("think", "reason", "chain of thought", "cot", "deep")) for h in hints_norm):
+                low = {m.lower(): m for m in order}
+                for cand in ("kimi-k2-thinking", "kimi-k2-0711-preview", "glm-4.5-airx"):
+                    m = low.get(cand)
+                    if m and m not in priorities:
+                        priorities.append(m)
+
+            if want_long_context:
+                # Sort by (provider preference for long-context, context window desc)
+                def _ctx_score(model: str) -> int:
+                    try:
+                        prov = cls.get_provider_for_model(model)
+                        if not prov:
+                            return 0
+                        caps = prov.get_capabilities(model)
+                        return int(getattr(caps, "context_window", 0) or 0)
+                    except Exception:
+                        return 0
+                def _long_pref(model: str) -> int:
+                    try:
+                        prov = cls.get_provider_for_model(model)
+                        if not prov:
+                            return 0
+                        ptype = prov.get_provider_type().name.upper()
+                        # Prefer KIMI (Moonshot family) for long-context
+                        return 1 if ptype in {"KIMI"} else 0
+                    except Exception:
+                        return 0
+                order = sorted(order, key=lambda m: (_long_pref(m), _ctx_score(m)), reverse=True)
+            else:
+                # Reorder by priorities while keeping relative order
+                rest = [m for m in order if m not in priorities]
+                order = priorities + rest
 
         return order
 

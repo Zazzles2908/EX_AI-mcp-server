@@ -9,6 +9,7 @@ Purpose:
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Dict, Optional
 
 import httpx
@@ -28,7 +29,13 @@ class HttpClient:
         self.api_key = api_key
         self.api_key_header = api_key_header
         self.api_key_prefix = api_key_prefix
-        self._client = httpx.Client(timeout=timeout, follow_redirects=True)
+        # Allow environment override for HTTP timeout (in seconds)
+        try:
+            _env_timeout = float(os.getenv("EX_HTTP_TIMEOUT_SECONDS", str(timeout)))
+        except Exception:
+            _env_timeout = timeout
+        self._timeout = _env_timeout
+        self._client = httpx.Client(timeout=self._timeout, follow_redirects=True)
 
     @property
     def client(self) -> httpx.Client:

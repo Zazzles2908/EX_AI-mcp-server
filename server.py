@@ -269,6 +269,22 @@ try:
     except Exception as e:
         logging.warning(f"Could not set up activity log file: {e}")
 
+
+        # Dedicated ERROR+ rotating file handler for centralized error tracking
+        try:
+            errors_handler = RotatingFileHandler(
+                log_dir / "mcp_errors.log",
+                maxBytes=10 * 1024 * 1024,  # 10MB max per file
+                backupCount=5,
+                encoding="utf-8",
+            )
+            errors_handler.setLevel(logging.ERROR)
+            errors_handler.setFormatter(LocalTimeFormatter(log_format))
+            logging.getLogger().addHandler(errors_handler)
+            logging.info("Centralized error log enabled at: %s", str(log_dir / "mcp_errors.log"))
+        except Exception as e:
+            logging.warning(f"Could not set up centralized error log: {e}")
+
     # Log setup info directly to root logger since logger isn't defined yet
     logging.info(f"Logging to: {log_dir / 'mcp_server.log'}")
     logging.info(f"Process PID: {os.getpid()}")
@@ -1007,18 +1023,109 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         mcp_activity_logger.info(f"TOOL_CALL: {name} with {len(arguments)} arguments req_id={req_id}")
     except Exception:
         pass
-    # Optional JSONL mirror of boundary tool-call events
+    # Initialize JSONL event (boundary start) and monitoring helpers
     try:
         from utils.tool_events import ToolCallEvent as __Evt, ToolEventSink as __Sink
-        if _env_true("EX_MIRROR_ACTIVITY_TO_JSONL", "false"):
+        _ex_mirror = _env_true("EX_MIRROR_ACTIVITY_TO_JSONL", "false")
+        _evt = __Evt(provider="boundary", tool_name=name, args={"arg_count": len(arguments), "req_id": req_id})
+        _sink = __Sink()
+    except Exception:
+        _ex_mirror = False
+        _evt = None
+        _sink = None
+
+    # Watchdog and timeout configuration
+    import asyncio as _asyncio
+    import time as _time
+    try:
+        _tool_timeout_s = float(os.getenv("EX_TOOL_TIMEOUT_SECONDS", "120"))
+        _hb_every_s = float(os.getenv("EX_HEARTBEAT_SECONDS", "10"))
+        _warn_after_s = float(os.getenv("EX_WATCHDOG_WARN_SECONDS", "30"))
+        _err_after_s = float(os.getenv("EX_WATCHDOG_ERROR_SECONDS", "90"))
+    except Exception:
+        _tool_timeout_s, _hb_every_s, _warn_after_s, _err_after_s = 120.0, 10.0, 30.0, 90.0
+
+    async def _execute_with_monitor(_coro_factory):
+        start = _time.time()
+        # background heartbeat
+        mcp_logger = logging.getLogger("mcp_activity")
+        _stop = False
+        async def _heartbeat():
+            last_warned = False
+            while not _stop:
+                elapsed = _time.time() - start
+                try:
+                    if elapsed >= _err_after_s:
+                        mcp_logger.error(f"[WATCHDOG] tool={name} req_id={req_id} elapsed={elapsed:.1f}s — escalating")
+                    elif elapsed >= _warn_after_s and not last_warned:
+                        mcp_logger.warning(f"[WATCHDOG] tool={name} req_id={req_id} elapsed={elapsed:.1f}s — still running")
+                        last_warned = True
+                    else:
+                        mcp_logger.info(f"[PROGRESS] tool={name} req_id={req_id} elapsed={elapsed:.1f}s — heartbeat")
+                except Exception:
+                    pass
+                try:
+                    await _asyncio.sleep(_hb_every_s)
+                except Exception:
+                    break
+
+        hb_task = _asyncio.create_task(_heartbeat())
+        try:
+            main_task = _asyncio.create_task(_coro_factory())
+            result = await _asyncio.wait_for(main_task, timeout=_tool_timeout_s)
+            # record success
             try:
-                _evt = __Evt(provider="boundary", tool_name=name, args={"arg_count": len(arguments), "req_id": req_id})
-                _evt.end(ok=True)
-                __Sink().record(_evt)
+                if _ex_mirror and _evt and _sink:
+                    _evt.end(ok=True)
+                    _sink.record(_evt)
             except Exception:
                 pass
-    except Exception:
-        pass
+            return result
+        except _asyncio.CancelledError:
+            # Propagate cancellation (e.g., client disconnect) but record structured end
+            try:
+                mcp_logger.info(f"TOOL_CANCELLED: {name} req_id={req_id}")
+            except Exception:
+                pass
+            try:
+                main_task.cancel()
+            except Exception:
+                pass
+            try:
+                if _ex_mirror and _evt and _sink:
+                    _evt.end(ok=False, error="cancelled")
+                    _sink.record(_evt)
+            except Exception:
+                pass
+            raise
+        except _asyncio.TimeoutError:
+            try:
+                main_task.cancel()
+            except Exception:
+                pass
+            logger.error(f"Tool '{name}' timed out after {_tool_timeout_s}s req_id={req_id}")
+            try:
+                if _ex_mirror and _evt and _sink:
+                    _evt.end(ok=False, error=f"timeout {_tool_timeout_s}s")
+                    _sink.record(_evt)
+            except Exception:
+                pass
+            raise
+        except Exception as e:
+            logger.error(f"Tool '{name}' execution error req_id={req_id}: {e}", exc_info=True)
+            try:
+                if _ex_mirror and _evt and _sink:
+                    _evt.end(ok=False, error=str(e))
+                    _sink.record(_evt)
+            except Exception:
+                pass
+            raise
+        finally:
+            _stop = True
+            try:
+                hb_task.cancel()
+            except Exception:
+                pass
 
     # Handle thread context reconstruction if continuation_id is present
     if "continuation_id" in arguments and arguments["continuation_id"]:
@@ -1277,7 +1384,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             logger.debug(f"Tool {name} doesn't require model resolution - skipping model validation")
             # Execute tool directly without model context
             try:
-                return await tool.execute(arguments)
+                return await _execute_with_monitor(lambda: tool.execute(arguments))
             except Exception as e:
                 # Graceful error normalization for invalid arguments and runtime errors
                 try:
@@ -1540,7 +1647,9 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             pass
 
         # Execute tool with pre-resolved model context
-        result = await tool.execute(arguments)
+        __overall_start = _time.time()
+        __workflow_steps_completed = 1
+        result = await _execute_with_monitor(lambda: tool.execute(arguments))
         # Normalize result shape to list[TextContent]
         from mcp.types import TextContent as _TextContent
         if isinstance(result, _TextContent):
@@ -1599,7 +1708,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                         next_args["model"] = arguments.get("model") or model_name
                     # Execute next step directly
                     logger.info(f"[AUTO-CONTINUE] Executing next step for {name}: step_number={next_args.get('step_number')}")
-                    result = await tool.execute(next_args)
+                    result = await _execute_with_monitor(lambda: tool.execute(next_args))
                     # Normalize result shape for auto-continued step
                     from mcp.types import TextContent as _TextContent
                     if isinstance(result, _TextContent):
@@ -1610,6 +1719,10 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                         except Exception:
                             result = []
                     steps += 1
+                try:
+                    __workflow_steps_completed = 1 + int(steps)
+                except Exception:
+                    __workflow_steps_completed = 1
         except Exception as _e:
             logger.debug(f"[AUTO-CONTINUE] skipped/failed: {_e}")
 
@@ -1644,8 +1757,65 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                 # Always include a visible activity summary block for UI dropdowns (unconditional)
                 try:
                     from mcp.types import TextContent as _Txt
+                    from utils.token_utils import estimate_tokens as __est_tokens
+                    import json as _json
                     tail = f"=== PROGRESS ===\n{progress_block}\n=== END PROGRESS ===" if progress_block else "(no progress captured)"
 
+                    # Build MCP CALL SUMMARY (final status, steps, duration, model, tokens, continuation, expert)
+                    __total_dur = 0.0
+                    try:
+                        __total_dur = max(0.0, _time.time() - __overall_start)
+                    except Exception:
+                        __total_dur = 0.0
+                    __last_text = None
+                    try:
+                        __primary = result[-1] if isinstance(result, list) and result else None
+                        if isinstance(__primary, _Txt):
+                            __last_text = __primary.text or ""
+                        elif isinstance(__primary, dict):
+                            __last_text = __primary.get("text")
+                    except Exception:
+                        __last_text = None
+                    __meta = {}
+                    try:
+                        if __last_text:
+                            __meta = _json.loads(__last_text)
+                        else:
+                            __meta = {}
+                    except Exception:
+                        __meta = {}
+                    __next_req = bool(__meta.get("next_step_required") is True)
+                    __status = str(__meta.get("status") or ("pause_for_analysis" if __next_req else "ok")).upper()
+                    __step_no = __meta.get("step_number") or __workflow_steps_completed
+                    __total_steps = __meta.get("total_steps")
+                    __cid = __meta.get("continuation_id") or arguments.get("continuation_id")
+                    __model_used = arguments.get("model") or model_name
+                    try:
+                        __tokens = 0
+                        for __blk in (result or []):
+                            if isinstance(__blk, _Txt):
+                                __tokens += __est_tokens(__blk.text or "")
+                            elif isinstance(__blk, dict):
+                                __tokens += __est_tokens(str(__blk.get("text") or ""))
+                    except Exception:
+                        __tokens = 0
+                    __expert_flag = bool(arguments.get("use_assistant_model") or __meta.get("use_assistant_model"))
+                    if __expert_flag:
+                        __expert_status = "Pending" if __next_req else "Completed"
+                    else:
+                        __expert_status = "Disabled"
+                    __status_label = "WORKFLOW_PAUSED" if __next_req or (__status.startswith("PAUSE_FOR_")) else "COMPLETE"
+                    __next_action = f"Continue with step {((__step_no or 0) + 1)}" if __next_req else "None"
+                    __summary_text = (
+                        "=== MCP CALL SUMMARY ===\n"
+                        f"Tool: {name} | Status: {__status_label} (Step {__step_no}/{__total_steps or '?'} complete)\n"
+                        f"Duration: {__total_dur:.1f}s | Model: {__model_used} | Tokens: ~{__tokens}\n"
+                        f"Continuation ID: {__cid or '-'}\n"
+                        f"Next Action Required: {__next_action}\n"
+                        f"Expert Validation: {__expert_status}\n"
+                        "=== END SUMMARY ==="
+                    )
+                    # Prepare combined render (summary + progress)
                     # Optional compact summary line at top (off by default to avoid replacing first block)
                     try:
                         if _env_true("EX_ACTIVITY_SUMMARY_AT_TOP", "false"):
@@ -1661,10 +1831,18 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                     if md_details:
                         # Robust rendering: always include a visible plain-text block first,
                         # then an optional collapsible details section for UIs that support it.
-                        tail_render = f"{tail}\nreq_id={req_id}\n\n<details><summary>Tool activity (req_id={req_id})</summary>\n\n{tail}\n</details>"
+                        tail_render = (
+                            f"{__summary_text}\n\n{tail}\nreq_id={req_id}\n\n"
+                            f"<details><summary>Tool activity (req_id={req_id})</summary>\n\n{tail}\n</details>"
+                        )
                     else:
-                        tail_render = f"{tail}\nreq_id={req_id}"
+                        tail_render = f"{__summary_text}\n\n{tail}\nreq_id={req_id}"
                     tail_line = _Txt(type="text", text=tail_render)
+                    # Also emit a single-line activity summary for log watchers
+                    __mcp_summary_line = (
+                        f"MCP_CALL_SUMMARY: tool={name} status={__status_label} step={__step_no}/{__total_steps or '?'} "
+                        f"dur={__total_dur:.1f}s model={__model_used} tokens~={__tokens} cont_id={__cid or '-'} expert={__expert_status} req_id={req_id}"
+                    )
 
                     # Force-first option for renderers that only show the first block
                     if _env_true("EX_ACTIVITY_FORCE_FIRST", "false"):
@@ -1711,6 +1889,11 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             except Exception:
                 prog_count = 0
             mcp_activity_logger.info(f"TOOL_SUMMARY: name={name} req_id={req_id} progress={prog_count}")
+            try:
+                if '__mcp_summary_line' in locals() and __mcp_summary_line:
+                    mcp_activity_logger.info(__mcp_summary_line)
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -1944,6 +2127,46 @@ async def reconstruct_thread_context(arguments: dict[str, Any]) -> dict[str, Any
             f"continuation_id parameter. "
             f"This will create a new conversation thread that can continue with follow-up exchanges."
         )
+
+
+    # Enforce session-scoped conversations if enabled
+    try:
+        from utils.client_info import get_current_session_fingerprint
+
+        def _env_true(name: str, default: str = "false") -> bool:
+            return str(os.getenv(name, default)).strip().lower() in {"1", "true", "yes", "on"}
+
+        strict_scope = _env_true("EX_SESSION_SCOPE_STRICT", "false")
+        allow_cross = _env_true("EX_SESSION_SCOPE_ALLOW_CROSS_SESSION", "false")
+        current_fp = get_current_session_fingerprint(arguments)
+        stored_fp = getattr(context, "session_fingerprint", None)
+        if strict_scope and stored_fp and current_fp and stored_fp != current_fp and not allow_cross:
+            # Log to activity for diagnostics
+            try:
+                mcp_activity_logger = logging.getLogger("mcp_activity")
+                mcp_activity_logger.warning(
+                    f"CONVERSATION_SCOPE_BLOCK: thread={continuation_id} stored_fp={stored_fp} current_fp={current_fp}"
+                )
+            except Exception:
+                pass
+            raise ValueError(
+                "This continuation_id belongs to a different client session. "
+                "To avoid accidental cross-window sharing, session-scoped conversations are enabled. "
+                "Start a fresh conversation (omit continuation_id) or explicitly allow cross-session use by setting "
+                "EX_SESSION_SCOPE_ALLOW_CROSS_SESSION=true."
+            )
+        # Soft warn if cross-session allowed
+        if stored_fp and current_fp and stored_fp != current_fp and allow_cross:
+            try:
+                mcp_activity_logger = logging.getLogger("mcp_activity")
+                mcp_activity_logger.info(
+                    f"CONVERSATION_SCOPE_WARN: cross-session continuation allowed thread={continuation_id}"
+                )
+            except Exception:
+                pass
+    except Exception:
+        # Never hard-fail scope checks; proceed if anything goes wrong
+        pass
 
     # Add user's new input to the conversation
     user_prompt = arguments.get("prompt", "")
