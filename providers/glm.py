@@ -1,3 +1,7 @@
+# DEPRECATED: Canonical provider lives under src/providers/glm.py
+# This file is frozen and will be removed after migration Phase F.
+# Import from src.providers.* going forward.
+
 """GLM (ZhipuAI) model provider implementation."""
 
 import logging
@@ -17,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 class GLMModelProvider(OpenAICompatibleProvider):
     """GLM (ZhipuAI) model provider implementation.
-    
+
     Provides access to ZhipuAI's GLM models through their OpenAI-compatible API.
     Supports various GLM model variants including GLM-4, GLM-4-Plus, and GLM-Air series.
     """
@@ -142,32 +146,32 @@ class GLMModelProvider(OpenAICompatibleProvider):
 
     def get_capabilities(self, model_name: str) -> ModelCapabilities:
         """Get capabilities for a specific GLM model.
-        
+
         Args:
             model_name: Name of the model (can be alias)
-            
+
         Returns:
             ModelCapabilities object for the model
-            
+
         Raises:
             ValueError: If model is not supported or not allowed by restrictions
         """
         resolved_name = self._resolve_model_name(model_name)
-        
+
         if resolved_name not in self.SUPPORTED_MODELS:
             raise ValueError(f"Unsupported GLM model: {model_name}")
-        
+
         # Apply model restrictions if configured
         from utils.model_restrictions import get_restriction_service
         restriction_service = get_restriction_service()
         if not restriction_service.is_allowed(ProviderType.GLM, resolved_name, model_name):
             raise ValueError(f"GLM model '{model_name}' is not allowed by current restrictions.")
-        
+
         return self.SUPPORTED_MODELS[resolved_name]
 
     def get_provider_type(self) -> ProviderType:
         """Get the provider type for this provider.
-        
+
         Returns:
             ProviderType.GLM
         """
@@ -175,10 +179,10 @@ class GLMModelProvider(OpenAICompatibleProvider):
 
     def validate_model_name(self, model_name: str) -> bool:
         """Validate if a model name is supported by this provider.
-        
+
         Args:
             model_name: Model name to validate (can be alias)
-            
+
         Returns:
             True if model is supported, False otherwise
         """
@@ -247,10 +251,10 @@ class GLMModelProvider(OpenAICompatibleProvider):
 
     def supports_thinking_mode(self, model_name: str) -> bool:
         """Check if a model supports extended thinking mode.
-        
+
         Args:
             model_name: Name of the model to check
-            
+
         Returns:
             True if model supports thinking mode, False otherwise
         """
@@ -262,10 +266,10 @@ class GLMModelProvider(OpenAICompatibleProvider):
 
     def list_models(self, respect_restrictions: bool = True) -> list[str]:
         """List all available GLM models.
-        
+
         Args:
             respect_restrictions: Whether to filter models based on restrictions
-            
+
         Returns:
             List of available model names (including aliases)
         """
@@ -275,11 +279,11 @@ class GLMModelProvider(OpenAICompatibleProvider):
             for capabilities in self.SUPPORTED_MODELS.values():
                 models.extend(capabilities.aliases)
             return models
-        
+
         # Filter by restrictions
         from utils.model_restrictions import get_restriction_service
         restriction_service = get_restriction_service()
-        
+
         allowed_models = []
         for model_name, capabilities in self.SUPPORTED_MODELS.items():
             if restriction_service.is_allowed(ProviderType.GLM, model_name):
@@ -288,15 +292,15 @@ class GLMModelProvider(OpenAICompatibleProvider):
                 for alias in capabilities.aliases:
                     if restriction_service.is_allowed(ProviderType.GLM, model_name, alias):
                         allowed_models.append(alias)
-        
+
         return allowed_models
 
     def _resolve_model_name(self, model_name: str) -> str:
         """Resolve model aliases to actual model names.
-        
+
         Args:
             model_name: Input model name or alias
-            
+
         Returns:
             Resolved canonical model name
         """
@@ -305,12 +309,12 @@ class GLMModelProvider(OpenAICompatibleProvider):
         name_norm = model_name.strip()
         if name_norm in self.SUPPORTED_MODELS:
             return model_name
-        
+
         # Search through aliases
         for canonical_name, capabilities in self.SUPPORTED_MODELS.items():
             if name_norm in capabilities.aliases:
                 logger.debug(f"Resolved GLM model alias '{model_name}' to '{canonical_name}'")
                 return canonical_name
-        
+
         # If no alias found, return as-is (will be caught by validation)
         return model_name

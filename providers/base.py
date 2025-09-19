@@ -1,3 +1,7 @@
+# DEPRECATED: Canonical implementation lives under src/providers/base.py
+# This file is frozen and will be removed after migration Phase F.
+# Import from src.providers.* going forward.
+
 """Base model provider interface and data classes."""
 
 import base64
