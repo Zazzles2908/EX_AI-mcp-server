@@ -44,6 +44,9 @@ Owner: Augment Agent
 - docs/standard_tools/adding_providers.md — best practices now reference src/providers/*
 
 - src/providers/zhipu_optional.py — reverse shim removed; now an internal SDK-aware optional loader (no providers.* import)
+- src/tools/ — removed (ghost placeholder eliminated; canonical tools live under tools/)
+- CI import blocker added — .github/workflows/ci.yml runs scripts/check_no_legacy_imports.py to prevent new providers.* / routing.* imports in non-test code
+
 
 ## Next candidates to remove (pending full confirmation)
 - providers/* and routing/* shims after all imports/tests are updated to `src.*`
