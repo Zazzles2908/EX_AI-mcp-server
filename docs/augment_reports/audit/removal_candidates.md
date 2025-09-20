@@ -31,6 +31,11 @@ Owner: Augment Agent
 - scripts/exai_agentic_audit.py — DEFAULT_FILES now points to `src/providers/registry.py`
 - docs/standard_tools/adding_providers.md — all legacy `providers/*` references updated to `src/providers/*`
 
+- scripts/validate_websearch.py — imports migrated to src.providers.*, smoke passed
+- scripts/validate_quick.py — imports migrated to src.providers.*, tools/provider import check passes
+
+- tools/selfcheck.py — migrated to src.providers.registry import
+
 ## Next candidates to remove (pending full confirmation)
 - providers/* and routing/* shims after all imports/tests are updated to `src.*`
 - Redundant validation wrappers once a single consolidated smoke script exists
