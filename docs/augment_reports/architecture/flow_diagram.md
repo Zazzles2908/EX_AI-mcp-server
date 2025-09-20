@@ -3,32 +3,30 @@
 Status: Visual quick reference
 
 ```mermaid
-flowchart TD
-  subgraph Client Side
+graph TD
+  subgraph ClientSide
     U[User / IDE / CLI]
     MCPClient[MCP Client]
   end
 
   U --> MCPClient
-  MCPClient -->|JSON-RPC (stdio/WS)| Server[server.py]
+  MCPClient -->|JSON-RPC stdio+WS| Server[server.py]
 
   Server --> LT[list_tools]
   Server --> CT[handle_call_tool]
-  CT --> Tool[Tool (tools/*)]
+  CT --> Tool[tools/*]
 
   Tool --> Router[RouterService (src/router/service.py)]
   Router --> Conf[configure_providers()]
   Conf --> Registry[ModelProviderRegistry (src/providers/registry.py)]
 
-  Registry -->|selects| Provider[(Provider impl)]
-  Provider -->|SDK / HTTP| External[(GLM/Kimi/OpenAI-Compatible APIs)]
+  Registry -->|selects| Provider[Provider impl]
+  Provider -->|SDK or HTTP| External[GLM / Kimi / OpenAI-Compatible APIs]
 
-  %% Optional agentic path
   Tool -. heuristic .-> ATR[IntelligentTaskRouter (src/core/agentic/task_router.py)]
-  ATR -. suggest model .-> Router
+  ATR -. suggest .-> Router
 
-  %% Observability
-  Server --> Logs[(.logs/*)]
+  Server --> Logs[.logs/*]
 ```
 
 Notes
