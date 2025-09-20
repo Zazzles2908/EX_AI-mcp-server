@@ -2,27 +2,16 @@
 
 ```mermaid
 graph TD
-  subgraph Canonical (src/*)
-    SRC_PROV[src/providers/*]
-    SRC_ROUT[src/router/*]
-    SRC_TOOLS[tools/*]
-  end
+  SRC_PROV["src/providers/*"]
+  SRC_ROUT["src/router/*"]
+  TOOLS["tools/*"]
+  LEG_PROV["providers/* (shim)"]
+  LEG_ROUT["routing/* (shim)"]
 
-  subgraph Legacy Shims (temporary)
-    LEG_PROV[providers/* (shim)]
-    ROUT_SHIM[routing/* (shim)]
-  end
-
-  SRC_TOOLS --> SRC_ROUT
+  TOOLS --> SRC_ROUT
   SRC_ROUT --> SRC_PROV
-
-  LEG_PROV -.redirects.-> SRC_PROV
-  ROUT_SHIM -.re-exports.-> SRC_ROUT
-
-  style LEG_PROV fill:#fff3cd,stroke:#f0ad4e
-  style ROUT_SHIM fill:#fff3cd,stroke:#f0ad4e
-  style SRC_PROV fill:#d1e7dd,stroke:#198754
-  style SRC_ROUT fill:#d1e7dd,stroke:#198754
+  LEG_PROV --> SRC_PROV
+  LEG_ROUT --> SRC_ROUT
 ```
 
 Notes

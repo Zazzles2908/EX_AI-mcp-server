@@ -23,21 +23,17 @@ Top-level flow (happy path)
 
 Mermaid (visual)
 ```mermaid
-flowchart TD
-  Client[[MCP Client]] -->|JSON-RPC stdio| MCP[server.py]
-  MCP --> LT[list_tools]
-  MCP --> CT[handle_call_tool]
-  CT -->|select tool| Tool[Tool instance]
-  Tool -->|needs model| Router[RouterService (src/router/service.py)]
-  Router -->|configure if needed| Conf[configure_providers()]
-  Conf --> Registry[ModelProviderRegistry (src/providers/registry.py)]
-  Registry --> Provider[(Provider impl: Kimi/GLM/OpenRouter/Custom)]
-  Provider --> External[(External API)]
-  subgraph Agentic
-    ATR[IntelligentTaskRouter (src/core/agentic/task_router.py)]
-  end
-  Tool -. optional heuristic .-> ATR
-  MCP --> Logs[(logs/mcp_server.log, mcp_activity.log)]
+graph TD
+  C["MCP Client"] --> S["server.py"]
+  S --> LT["list_tools"]
+  S --> CT["handle_call_tool"]
+  CT --> T["Tool"]
+  T --> R["RouterService"]
+  R --> REG["ModelProviderRegistry"]
+  REG --> P["Provider: Kimi / GLM / ..."]
+  P --> X["Upstream API"]
+  T -.-> AR["IntelligentTaskRouter (optional)"]
+  S --> L["logs/mcp_server.log"]
 ```
 
 Key anchors (files)

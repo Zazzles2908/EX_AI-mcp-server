@@ -1,0 +1,29 @@
+# Removal Candidates (post-migration review)
+
+Status: Do not delete yet. This list is for post-confirmation cleanup after the full import/routing conversion is complete.
+
+## Legacy shim trees
+- providers/* (top-level) — shim layer redirecting to src/providers/*
+- routing/* (top-level) — shim re-export to src/core/agentic/task_router.py
+
+Rationale: Canonical code now lives under src/providers/* and src/router/* (plus src/core/agentic/*). Shims exist only for backward compatibility during migration.
+
+## Legacy documentation/examples using old imports
+- Any docs showing `from providers...` should be updated to `from src.providers...`
+
+## Scripts likely to be consolidated or removed
+- scripts/mcp_server_wrapper.py — keep if still the standard way to spawn stdio server; otherwise consolidate to server.py entrypoints
+- scripts/mcp_e2e_smoketest.py — keep if useful; may merge into a single `scripts/smoke_all.py`
+- scripts/diagnose_mcp.py — retain if actively used; otherwise fold diagnostics into a single validate script
+
+## Tests that reference legacy paths (to be updated, not deleted)
+- tests/test_provider_routing_bugs.py — update imports to `src.providers.*` once shims are removed
+
+## Next steps before deletion
+1) Confirm all non-test imports use `src.providers.*` and `src/router/*`
+2) Run end-to-end MCP validations (stdio and WS)
+3) After 1–2 weeks without regressions, schedule removal of shim directories
+4) Replace or retire duplicate scripts with a single, documented smoke/health script
+
+Owner: Augment Agent
+
