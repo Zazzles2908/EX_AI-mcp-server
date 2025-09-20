@@ -267,6 +267,16 @@ class ThinkDeepTool(WorkflowTool):
                 self.stored_request_params["use_websearch"] = request.use_websearch
         except AttributeError:
             pass
+        # Store model if provided
+        try:
+            model_val = getattr(request, "model", None)
+        except AttributeError:
+            model_val = None
+        if model_val is not None:
+            try:
+                self.stored_request_params["model"] = model_val
+            except Exception:
+                pass
 
         # Add thinking-specific context to response
         response_data.update(
@@ -285,7 +295,6 @@ class ThinkDeepTool(WorkflowTool):
         # Add thinking_complete field for final steps (test expects this)
         if not request.next_step_required:
             response_data["thinking_complete"] = True
-
             # Add complete_thinking summary (test expects this)
             response_data["complete_thinking"] = {
                 "steps_completed": len(self.work_history),
@@ -672,6 +681,61 @@ but also acknowledge strong insights and valid conclusions.
         else:
             return "Thinking analysis is ready for expert validation and final recommendations."
 
+    # UI summary helpers for client rendering
+    def _ui_summarize_text(self, txt: str, max_items: int = 5) -> list[str]:
+        try:
+            if not txt:
+                return []
+            lines = [l.strip(" \t-•") for l in txt.splitlines() if l.strip()]
+            bullets = [l for l in lines if l.startswith(('-', '*')) or (len(l) > 1 and l[:2].isdigit())]
+            if not bullets:
+                import re
+                sentences = re.split(r"(?<=[.!?])\s+", txt)
+                bullets = [s.strip() for s in sentences if s.strip()][:max_items]
+            return bullets[:max_items]
+        except Exception:
+            return []
+
+    def _ui_build_summary(self, request, assistant_response: str, continuation_id_val: Optional[str] = None, extra: dict | None = None) -> dict:
+        try:
+            try:
+                thinking_mode_res = self.get_request_thinking_mode(request)
+            except Exception:
+                thinking_mode_res = getattr(request, 'thinking_mode', None)
+            try:
+                use_ws_res = bool(self.get_request_use_websearch(request))
+            except Exception:
+                use_ws_res = bool(getattr(request, 'use_websearch', False))
+            model_name = None
+            try:
+                if isinstance(getattr(self, 'stored_request_params', None), dict):
+                    model_name = self.stored_request_params.get('model')
+            except Exception:
+                pass
+            if not model_name:
+                model_name = getattr(request, 'model', None)
+            return {
+                "step": getattr(request, 'step', ''),
+                "step_number": getattr(request, 'step_number', 1),
+                "total_steps": getattr(request, 'total_steps', 1),
+                "findings": getattr(request, 'findings', ''),
+                "thinking_mode": thinking_mode_res,
+                "use_websearch": use_ws_res,
+                "focus_areas": getattr(request, 'focus_areas', None) or ["general"],
+                "prompt": getattr(request, 'step', ''),
+                "output": {
+                    "summary_bullets": self._ui_summarize_text(assistant_response),
+                    "raw": assistant_response or "",
+                },
+                "tool": self.get_name(),
+                "duration_secs": (extra or {}).get("duration_secs"),
+                "model": model_name or (extra or {}).get("model_name"),
+                "tokens": (extra or {}).get("tokens"),
+                "conversation_id": (extra or {}).get("conversation_id") or continuation_id_val,
+                "expert_mode": bool(self.get_request_use_assistant_model(request)) if request is not None else None,
+            }
+        except Exception:
+            return {}
     def format_final_response(self, assistant_response: str, request, **kwargs) -> dict:
         """
         Format the final response from the assistant for thinking analysis
@@ -692,6 +756,17 @@ but also acknowledge strong insights and valid conclusions.
             response_data["completion_status"] = "analysis_complete_with_certainty"
         else:
             response_data["completion_status"] = "analysis_complete_pending_validation"
+
+        # UI summary for clients
+        try:
+            response_data["ui_summary"] = self._ui_build_summary(
+                request,
+                assistant_response,
+                kwargs.get("continuation_id") if isinstance(kwargs, dict) else None,
+                kwargs if isinstance(kwargs, dict) else None,
+            )
+        except Exception:
+            pass
 
         return response_data
 
@@ -719,6 +794,17 @@ but also acknowledge strong insights and valid conclusions.
             "confidence_trend": request.confidence,
             "investigation_depth": "expanding" if request.next_step_required else "finalizing",
         }
+
+        # UI summary for clients
+        try:
+            response_data["ui_summary"] = self._ui_build_summary(
+                request,
+                assistant_response,
+                continuation_id,
+                kwargs if isinstance(kwargs, dict) else None,
+            )
+        except Exception:
+            pass
 
         return response_data
 

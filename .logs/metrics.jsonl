@@ -264,3 +264,12 @@
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2356, "output_tokens": 5, "t": 1758375088.3032975}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2350, "output_tokens": 421, "t": 1758375094.138315}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2324, "output_tokens": 214, "t": 1758375104.3384163}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2041, "output_tokens": 8, "t": 1758380692.2650363}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2041, "output_tokens": 8, "t": 1758380693.2302763}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2040, "output_tokens": 8, "t": 1758381161.776525}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2041, "output_tokens": 9, "t": 1758381162.9274075}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2334, "output_tokens": 5, "t": 1758381362.6645417}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2334, "output_tokens": 5, "t": 1758381363.3450303}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2338, "output_tokens": 14, "t": 1758381596.0313468}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2337, "output_tokens": 13, "t": 1758381603.8976262}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2396, "output_tokens": 1434, "t": 1758381767.9231198}

@@ -81,6 +81,24 @@ Caveats
 - __pycache__ directories and .pyc files are runtime artifacts and are not tracked; they will be removed automatically when deleting directories.
 - Keep this list as the authoritative deletion checklist for the post-green window.
 
+
+## Phase‑F removal status (feat/phaseF-shim-removal)
+- Status: The following shim files have been deleted in the Phase‑F branch:
+  - providers/__init__.py
+  - providers/balancer.py
+  - providers/base.py
+  - providers/glm.py
+  - providers/hybrid_platform_manager.py
+  - providers/kimi.py
+  - providers/openai_compatible.py
+  - providers/registry.py
+  - providers/zhipu_optional.py
+  - providers/moonshot/provider.py
+  - providers/zhipu/provider.py
+  - routing/task_router.py
+- Residual directories: providers/, routing/ now contain only __pycache__/ artifacts locally; these are not tracked by git and disappear after directory deletion in the PR.
+- Canonical sources: all implementations live under src/providers/* and src/router/*.
+
 - providers/* and routing/* shims after all imports/tests are updated to `src.*`
 
 - Redundant validation wrappers once a single consolidated smoke script exists
