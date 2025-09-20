@@ -1,6 +1,6 @@
 # Adding a New Provider
 
-This guide explains how to add support for a new AI model provider to the Zen MCP Server. The provider system is designed to be extensible and follows a simple pattern.
+This guide explains how to add support for a new AI model provider to the EXAI MCP Server. The provider system is designed to be extensible and follows a simple pattern.
 
 ## Overview
 
@@ -296,10 +296,10 @@ Without this, API calls with aliases like `"large"` will fail because your API d
 
 ## Quick Checklist
 
-- [ ] Added to `ProviderType` enum in `providers/base.py`
+- [ ] Added to `ProviderType` enum in `src/providers/base.py`
 - [ ] Created provider class with all required methods
-- [ ] Added API key mapping in `providers/registry.py`
-- [ ] Added to provider priority order in `registry.py`
+- [ ] Added API key mapping in `src/providers/registry.py`
+- [ ] Added to provider priority order in `src/providers/registry.py`
 - [ ] Imported and registered in `server.py`
 - [ ] Basic tests verify model validation and capabilities
 - [ ] Tested with real API calls

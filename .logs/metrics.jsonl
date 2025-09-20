@@ -229,3 +229,15 @@
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2039, "output_tokens": 246, "t": 1758359941.3781567}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2328, "output_tokens": 68, "t": 1758359942.9449248}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2038, "output_tokens": 149, "t": 1758359945.6227198}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2329, "output_tokens": 143, "t": 1758362088.6994197}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2039, "output_tokens": 118, "t": 1758362091.1585302}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2328, "output_tokens": 70, "t": 1758362092.7727995}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2038, "output_tokens": 147, "t": 1758362095.754393}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2329, "output_tokens": 186, "t": 1758362137.572302}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2039, "output_tokens": 624, "t": 1758362150.0094948}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2328, "output_tokens": 69, "t": 1758362151.3001685}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2038, "output_tokens": 132, "t": 1758362153.7490587}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2329, "output_tokens": 64, "t": 1758362524.1652308}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2039, "output_tokens": 170, "t": 1758362527.533352}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2328, "output_tokens": 64, "t": 1758362529.5651977}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2038, "output_tokens": 483, "t": 1758362539.8903651}
