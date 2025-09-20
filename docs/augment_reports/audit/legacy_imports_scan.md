@@ -35,3 +35,11 @@ Next actions
 - Where feasible in app code (non-tests), migrate imports to `src.providers.*`
 - Add CI check (post-migration) to block new `providers.*` imports outside tests
 
+
+Updates (2025-09-20 — Phase C Batches C1–C3)
+- tests/test_kimi_glm_smoke.py → migrated to src.providers.*
+- tests/test_provider_routing_bugs.py → base/registry/openrouter migrated to src.providers.*; Gemini/OpenAI kept legacy imports (optional)
+- tests/test_auto_mode_custom_provider_only.py → custom migrated to src.providers.custom
+- tests/conftest.py → helper imports aligned to src.providers.*
+- pytest.ini → added optional_provider marker; selective tagging applied in tests
+

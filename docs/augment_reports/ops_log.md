@@ -90,3 +90,29 @@ Notes
 - We chose targeted marking over broad file skipping to retain OpenRouter-only coverage inside the same module.
 - CI can now deselect optional providers with `-m "not optional_provider"` if desired; tests still run locally when env keys are provided.
 - No server restart required for these marker-only and import-clarity changes.
+
+
+### Phase C — Script sweep (Batch C4)
+
+Summary (Batch outcome)
+- ONE-LINE: YES — scripts/ contained no legacy `providers.*` or `routing.*` imports requiring change; already canonical or server-config based.
+- Scope: scripts/* (Python) scanned
+
+Notes
+- validate_quick.py and validate_websearch.py already use src.providers.*
+- Other scripts import server/tools paths or are shell/PowerShell helpers without Python imports
+
+
+### Phase D — Docs cleanup pass 2 (no restart required)
+
+Summary (Batch outcome)
+- ONE-LINE: YES — Updated CI notes to prefer `-m "not optional_provider"`; updated legacy_imports_scan.md with today’s migrations.
+- Scope: docs/standard_tools/ci-test-notes.md; docs/augment_reports/audit/legacy_imports_scan.md
+
+What changed
+- CI/Test Hygiene Notes: recommend deselecting optional providers via marker and show example
+- Audit: appended Update section with Phase C Batches C1–C3 migrations
+
+Notes
+- Historical docs under previous_audit/ were not modified (kept as historical source). Active audit source remains docs/augment_reports/audit/.
+- No server restart required for documentation updates.
