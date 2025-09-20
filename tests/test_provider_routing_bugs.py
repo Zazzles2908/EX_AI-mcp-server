@@ -13,8 +13,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.providers.base import ProviderType
-from src.providers.registry import ModelProviderRegistry
+from providers.base import ProviderType
+from providers.registry import ModelProviderRegistry
 from tools.chat import ChatTool
 from tools.shared.base_models import ToolRequest
 
@@ -76,7 +76,7 @@ class TestProviderRoutingBugs:
             os.environ["OPENROUTER_API_KEY"] = "test-openrouter-key"
 
             # Register only OpenRouter provider (like in server.py:configure_providers)
-            from src.providers.openrouter import OpenRouterProvider
+            from providers.openrouter import OpenRouterProvider
 
             ModelProviderRegistry.register_provider(ProviderType.OPENROUTER, OpenRouterProvider)
 
@@ -163,8 +163,6 @@ class TestProviderRoutingBugs:
                 else:
                     os.environ[key] = value
 
-    @pytest.mark.optional_provider
-
     @pytest.mark.no_mock_provider
     def test_mixed_api_keys_correct_routing(self):
         """
@@ -192,7 +190,7 @@ class TestProviderRoutingBugs:
             # Register providers in priority order (like server.py)
             from providers.gemini import GeminiModelProvider
             from providers.openai_provider import OpenAIModelProvider
-            from src.providers.openrouter import OpenRouterProvider
+            from providers.openrouter import OpenRouterProvider
 
             ModelProviderRegistry.register_provider(ProviderType.GOOGLE, GeminiModelProvider)
             ModelProviderRegistry.register_provider(ProviderType.OPENAI, OpenAIModelProvider)
@@ -274,7 +272,7 @@ class TestOpenRouterAliasRestrictions:
             os.environ["OPENROUTER_ALLOWED_MODELS"] = "o3-mini,pro,gpt4.1,flash,o4-mini,o3"  # User's exact config
 
             # Register OpenRouter provider
-            from src.providers.openrouter import OpenRouterProvider
+            from providers.openrouter import OpenRouterProvider
 
             ModelProviderRegistry.register_provider(ProviderType.OPENROUTER, OpenRouterProvider)
 
@@ -349,7 +347,7 @@ class TestOpenRouterAliasRestrictions:
             os.environ["OPENROUTER_ALLOWED_MODELS"] = "o3-mini,anthropic/claude-opus-4,flash"
 
             # Register OpenRouter provider
-            from src.providers.openrouter import OpenRouterProvider
+            from providers.openrouter import OpenRouterProvider
 
             ModelProviderRegistry.register_provider(ProviderType.OPENROUTER, OpenRouterProvider)
 

@@ -1,16 +1,11 @@
 # Architecture
 
-> Deprecation: legacy module paths `providers.*` and `routing.*` are shims; prefer `src.providers.*` and `src/router/*` (plus `src/core/agentic/*`).
-
-
 ## Module map (where things live)
 - tools/: each MCP tool implementation (chat, analyze, codereview, thinkdeep, etc.)
 - tools/registry.py: maps tool names to module/class, supports LEAN_MODE allowlists
-- src/router/service.py: Service-level routing integration
-
-- src/providers/: provider implementations and registry (providers/* is a deprecated shim)
-- src/providers/registry.py: lists models, provider capabilities, and builds fallback chains
-- src/core/agentic/task_router.py: IntelligentTaskRouter and helpers (signals, thresholds)
+- providers/: provider implementations and registry
+- providers/registry.py: lists models, provider capabilities, and builds fallback chains
+- routing/task_router.py: IntelligentTaskRouter and helpers (signals, thresholds)
 - logs/: output logs (mcp_server.log, mcp_activity.log)
 
 ## Data flow (text only diagram)

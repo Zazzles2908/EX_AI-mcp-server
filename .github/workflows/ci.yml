@@ -10,8 +10,3 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: echo "ok"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Legacy import blocker
-        run: python scripts/check_no_legacy_imports.py

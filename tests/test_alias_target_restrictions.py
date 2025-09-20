@@ -12,11 +12,6 @@ from providers.base import ProviderType
 from providers.gemini import GeminiModelProvider
 from providers.openai_provider import OpenAIModelProvider
 from utils.model_restrictions import ModelRestrictionService
-import pytest
-
-# Mark this module as optional-provider focused (Gemini/OpenAI)
-pytestmark = pytest.mark.optional_provider
-
 
 
 class TestAliasTargetRestrictions:

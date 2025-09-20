@@ -187,7 +187,7 @@ class TestAutoModeCustomProviderOnly:
             importlib.reload(config)
 
             # Register custom provider
-            from src.providers.custom import CustomProvider
+            from providers.custom import CustomProvider
 
             ModelProviderRegistry.register_provider(ProviderType.CUSTOM, CustomProvider)
 

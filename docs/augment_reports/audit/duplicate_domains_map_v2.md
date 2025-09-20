@@ -71,3 +71,5 @@ Notes
 - Reverse shim identified: src/providers/zhipu_optional.py previously imported providers.zhipu_optional; now replaced with an internal optional loader to avoid mixed trees.
 - Auggie modules are not runtime-critical and have been migrated to src.providers.* imports; no server restart required for those changes.
 - Next non-destructive steps: enforce no providers.* imports in non-tests via a lightweight check; proceed to remove ghost src/tools/ after confirming no imports.
+
+- Ghost directory removal: src/tools/ removed (no references found); tools/ remains canonical.

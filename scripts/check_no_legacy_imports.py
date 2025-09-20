@@ -1,22 +1,19 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
-Legacy import blocker: fail CI if non-test code imports legacy top-level modules:
-- providers.*   (use src.providers.* instead)
-- routing.*     (use src/router/* or src/core/agentic/*)
+Fail the build if any non-test source file imports legacy top-level modules:
+- providers.* or routing.*
 
-Scope (checked):
-- server.py
-- src/** (all .py files)
-- tools/** (all .py files)
-- scripts/** (all .py files)
-
-Excluded:
+Exclusions:
 - tests/**
-- docs/**
-- examples/**
-- .git, venv/.venv, __pycache__
+- providers/** (shim tree)
+- routing/** (shim tree)
+- .venv, venv, .git, dist, build, __pycache__, docs/**
 
-This is intentionally strict and fast; it only scans lines that are not comments.
+Usage:
+  python scripts/check_no_legacy_imports.py
+
+Exit code 0: OK
+Exit code 1: Violations found
 """
 from __future__ import annotations
 
@@ -24,77 +21,48 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 
-LEGACY_PATTERNS = [
-    re.compile(r"^\s*from\s+providers\.", re.ASCII),
-    re.compile(r"^\s*import\s+providers\.", re.ASCII),
-    re.compile(r"^\s*from\s+routing\.", re.ASCII),
-    re.compile(r"^\s*import\s+routing\.", re.ASCII),
-]
-
-INCLUDE_DIRS = {
-    ROOT / "src",
-    ROOT / "tools",
-    ROOT / "scripts",
+EXCLUDED_DIRS = {
+    "tests",
+    "providers",
+    "routing",
+    ".git",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "__pycache__",
+    "docs",
 }
-INCLUDE_FILES = {ROOT / "server.py"}
 
-EXCLUDE_DIR_NAMES = {"tests", "docs", "examples", ".git", "__pycache__", "venv", ".venv"}
+PYTHON_EXT = {".py"}
 
+PATTERN = re.compile(r"^\s*(?:from\s+(providers|routing)\b|import\s+(providers|routing)\b)")
 
-def iter_python_files() -> Iterable[Path]:
-    # Single files
-    for f in INCLUDE_FILES:
-        if f.exists():
-            yield f
-    # Directories
-    for d in INCLUDE_DIRS:
-        if not d.exists():
-            continue
-        for root, dirnames, filenames in os.walk(d):
-            # prune excluded dirs in-place
-            dirnames[:] = [n for n in dirnames if n not in EXCLUDE_DIR_NAMES]
-            for name in filenames:
-                if name.endswith(".py"):
-                    yield Path(root) / name
+violations: list[tuple[str, int, str]] = []
 
+for path in ROOT.rglob("*.py"):
+    rel = path.relative_to(ROOT).as_posix()
+    # Skip excluded directories
+    parts = rel.split("/")
+    if parts[0] in EXCLUDED_DIRS:
+        continue
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        continue
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if PATTERN.search(line):
+            violations.append((rel, lineno, line.strip()))
 
-def line_has_legacy_import(line: str) -> bool:
-    s = line.strip()
-    if not s or s.startswith("#"):
-        return False
-    for pat in LEGACY_PATTERNS:
-        if pat.search(s):
-            return True
-    return False
+if violations:
+    print("[NO_LEGACY_IMPORTS] Found legacy imports in non-test code:")
+    for rel, lineno, src in violations:
+        print(f" - {rel}:{lineno}: {src}")
+    print("\nFix: import from src.providers.* or src.router.* instead; routing shim exists only for backwards compatibility.")
+    sys.exit(1)
 
-
-def main() -> int:
-    violations: list[tuple[Path, int, str]] = []
-    for py in iter_python_files():
-        try:
-            with py.open("r", encoding="utf-8", errors="ignore") as fh:
-                for i, ln in enumerate(fh, start=1):
-                    if line_has_legacy_import(ln):
-                        violations.append((py, i, ln.rstrip()))
-        except Exception as e:
-            print(f"WARN: failed to scan {py}: {e}", file=sys.stderr)
-
-    if violations:
-        print("Legacy imports detected (providers.* or routing.*) in non-test code:")
-        for path, lineno, text in violations:
-            rel = path.relative_to(ROOT)
-            print(f"  {rel}:{lineno}: {text}")
-        print("\nFix: replace with src.providers.* or src/router/* (or src/core/agentic/*).", file=sys.stderr)
-        return 1
-
-    print("OK: no legacy imports found in non-test code.")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+print("[NO_LEGACY_IMPORTS] OK — no legacy imports found in non-test code.")
 

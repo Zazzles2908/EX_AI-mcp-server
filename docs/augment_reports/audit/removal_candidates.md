@@ -1,8 +1,5 @@
 # Removal Candidates (post-migration review)
 
-Source-of-truth: Active audit lives under docs/augment_reports/audit/. The docs/augment_reports/previous_audit/ folder is historical reference only.
-
-
 Status: Do not delete yet. This list is for post-confirmation cleanup after the full import/routing conversion is complete.
 
 ## Legacy shim trees
@@ -47,8 +44,7 @@ Owner: Augment Agent
 - docs/standard_tools/adding_providers.md — best practices now reference src/providers/*
 
 - src/providers/zhipu_optional.py — reverse shim removed; now an internal SDK-aware optional loader (no providers.* import)
-- src/tools/ — removed (ghost placeholder eliminated; canonical tools live under tools/)
-- CI import blocker added — .github/workflows/ci.yml runs scripts/check_no_legacy_imports.py to prevent new providers.* / routing.* imports in non-test code
+- src/tools/ — removed in this pass (ghost; no imports found)
 
 
 ## Next candidates to remove (pending full confirmation)
