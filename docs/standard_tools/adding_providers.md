@@ -28,7 +28,7 @@ Each provider:
 
 ### 1. Add Provider Type
 
-Add your provider to `ProviderType` enum in `providers/base.py`:
+Add your provider to `ProviderType` enum in `src/providers/base.py`:
 
 ```python
 class ProviderType(Enum):
@@ -41,7 +41,7 @@ class ProviderType(Enum):
 
 #### Option A: Full Provider (Native Implementation)
 
-Create `providers/example.py`:
+Create `src/providers/example.py`:
 
 ```python
 """Example model provider implementation."""
@@ -182,10 +182,10 @@ class ExampleProvider(OpenAICompatibleProvider):
 
 ### 3. Register Your Provider
 
-Add environment variable mapping in `providers/registry.py`:
+Add environment variable mapping in `src/providers/registry.py`:
 
 ```python
-# In _get_api_key_for_provider method:
+# In _get_api_key_for_provider method (src/providers/registry.py):
 key_mapping = {
     ProviderType.KIMI: "KIMI_API_KEY",
     ProviderType.GLM: "GLM_API_KEY",
@@ -197,7 +197,7 @@ Add to `server.py`:
 
 1. **Import your provider**:
 ```python
-from providers.example import ExampleModelProvider
+from src.providers.example import ExampleModelProvider
 ```
 
 2. **Add to `configure_providers()` function**:
@@ -209,7 +209,7 @@ if example_key:
     logger.info("Example API key found - Example models available")
 ```
 
-3. **Add to provider priority** (in `providers/registry.py`):
+3. **Add to provider priority** (in `src/providers/registry.py`):
 ```python
 PROVIDER_PRIORITY_ORDER = [
     ProviderType.KIMI,
@@ -307,8 +307,8 @@ Without this, API calls with aliases like `"large"` will fail because your API d
 ## Examples
 
 See existing implementations:
-- **Full provider**: `providers/kimi.py` and `providers/glm.py`
-- **OpenAI-compatible**: `providers/custom.py`
-- **Base classes**: `providers/base.py`
+- **Full provider**: `src/providers/kimi.py` and `src/providers/glm.py`
+- **OpenAI-compatible**: `src/providers/custom.py`
+- **Base classes**: `src/providers/base.py`
 
 The modern approach uses `ModelCapabilities` objects directly in `SUPPORTED_MODELS`, making the implementation much cleaner and more consistent.

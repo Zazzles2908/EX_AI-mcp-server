@@ -27,3 +27,11 @@ Rationale: Canonical code now lives under src/providers/* and src/router/* (plus
 
 Owner: Augment Agent
 
+## Newly updated in this pass (safe migrations confirmed)
+- scripts/exai_agentic_audit.py — DEFAULT_FILES now points to `src/providers/registry.py`
+- docs/standard_tools/adding_providers.md — all legacy `providers/*` references updated to `src/providers/*`
+
+## Next candidates to remove (pending full confirmation)
+- providers/* and routing/* shims after all imports/tests are updated to `src.*`
+- Redundant validation wrappers once a single consolidated smoke script exists
+
