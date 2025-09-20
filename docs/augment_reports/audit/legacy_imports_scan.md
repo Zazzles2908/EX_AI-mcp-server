@@ -26,6 +26,16 @@ Status updates (migrated in this pass)
 - auggie/compare.py  now uses src.providers.registry
 - auggie/perf.py  now uses src.providers.registry
 
+
+- monitoring/health_monitor_factory.py — now uses src.providers.hybrid_platform_manager
+- tools/consensus.py — provider imports migrated to src.providers.registry
+- utils/conversation_memory.py — provider imports migrated to src.providers.registry
+- simulator_tests/conversation_base_test.py — provider import migrated for in-process tool runner
+- patch/patch_crossplatform.py — patched embedded test content to src.providers.registry
+
+Validation
+- Non-test legacy import blocker: PASS locally and enforced in CI
+
 Notes
 - Many tests intentionally import from `providers.*` to validate the shimmed surface; this is acceptable during the migration window
 - Tools generally import from `src.providers.*` already (e.g., tools/listmodels.py)
