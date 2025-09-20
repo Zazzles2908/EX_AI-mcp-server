@@ -1,7 +1,7 @@
-## Tools Reorganization Proposal (202509020)
+## Tools Reorganization Proposal (2025-09-20)
 
 ### YES/NO Summary
-YES 4 Proposed folderization and universal UI plan provided (no code moves performed yet).
+YES — Proposed folderization and universal UI plan provided (no code moves performed yet).
 
 ### Design goals
 - Clarity: entry-point tools separated from helpers and provider-specific scripts
@@ -36,29 +36,29 @@ Notes:
 - We can either keep current classes in place and add thin import shims under entrypoints/ to avoid breaking imports, or move files and update TOOL_MAP to point to new module paths.
 - Registry (TOOL_MAP) remains the single exposure gate. Visibility map (core/advanced/hidden) continues to control menu size.
 
-### Mapping: current file 3	o proposed location
-- analyze.py 3	o workflows/analyze.py
-- codereview.py 3	o workflows/codereview.py
-- debug.py 3	o workflows/debug.py
-- precommit.py 3	o workflows/precommit.py
-- refactor.py 3	o workflows/refactor.py
-- secaudit.py 3	o workflows/secaudit.py
-- testgen.py 3	o workflows/testgen.py
-- planner.py 3	o workflows/planner.py
-- consensus.py 3	o workflows/consensus.py
-- thinkdeep.py 3	o workflows/thinkdeep.py
-- tracer.py 3	o workflows/tracer.py
-- docgen.py 3	o workflows/docgen.py
-- chat.py 3	o entrypoints/chat.py (optional shim) or workflows/chat.py
-- listmodels.py 3	o capabilities/listmodels.py
-- provider_capabilities.py 3	o capabilities/provider_capabilities.py
-- autopilot.py, orchestrate_auto.py, browse_orchestrator.py 3	o orchestrators/
-- toolcall_log_tail.py, health.py, status.py, diagnose_ws_stack.py, ws_daemon_smoke.py 3	o diagnostics/
-- stream_demo.py, streaming_demo_tool.py, streaming_smoke_tool.py 3	o streaming/
-- kimi_upload.py, kimi_tools_chat.py, kimi_embeddings.py, kimi_files_cleanup.py 3	o providers/kimi/
-- glm_files.py, glm_agents.py, glm_files_cleanup.py 3	o providers/glm/
-- recommend.py 3	o (defer or incubate under workflows/ or orchestrators/ when registered)
-- selfcheck.py 3	o diagnostics/ (keep hidden unless explicitly enabled)
+### Mapping: current file -> proposed location
+- analyze.py -> workflows/analyze.py
+- codereview.py -> workflows/codereview.py
+- debug.py -> workflows/debug.py
+- precommit.py -> workflows/precommit.py
+- refactor.py -> workflows/refactor.py
+- secaudit.py -> workflows/secaudit.py
+- testgen.py -> workflows/testgen.py
+- planner.py -> workflows/planner.py
+- consensus.py -> workflows/consensus.py
+- thinkdeep.py -> workflows/thinkdeep.py
+- tracer.py -> workflows/tracer.py
+- docgen.py -> workflows/docgen.py
+- chat.py -> entrypoints/chat.py (optional shim) or workflows/chat.py
+- listmodels.py -> capabilities/listmodels.py
+- provider_capabilities.py -> capabilities/provider_capabilities.py
+- autopilot.py, orchestrate_auto.py, browse_orchestrator.py -> orchestrators/
+- toolcall_log_tail.py, health.py, status.py, diagnose_ws_stack.py, ws_daemon_smoke.py -> diagnostics/
+- stream_demo.py, streaming_demo_tool.py, streaming_smoke_tool.py -> streaming/
+- kimi_upload.py, kimi_tools_chat.py, kimi_embeddings.py, kimi_files_cleanup.py -> providers/kimi/
+- glm_files.py, glm_agents.py, glm_files_cleanup.py -> providers/glm/
+- recommend.py -> (defer or incubate under workflows/ or orchestrators/ when registered)
+- selfcheck.py -> diagnostics/ (keep hidden unless explicitly enabled)
 
 ### Universal UI summary (server-level)
 Problem: Only ThinkDeep emits ui_summary today; we want all tools to include a uniform UI block.
@@ -96,7 +96,7 @@ flowchart LR
    - Keep deprecation shims if needed
 4) Verification
    - list_tools, run smokes (chat GLM/Kimi, thinkdeep expert/non-expert), provider tools
-   - Ensure DIAGNOSTICS gating works and hidden tools don2t leak
+   - Ensure DIAGNOSTICS gating works and hidden tools don't leak
 5) Cleanup
    - Remove shims after a cooling period with green CI
 
