@@ -16,6 +16,8 @@ Top-level → Canonical mapping
 - providers.openrouter_registry → src.providers.openrouter_registry
 - providers.capabilities → src.providers.capabilities
 - providers.metadata → src.providers.metadata
+- providers.hybrid_platform_manager → src.providers.hybrid_platform_manager
+
 
 Mechanism
 - providers/__init__.py pre-populates sys.modules for the above entries
