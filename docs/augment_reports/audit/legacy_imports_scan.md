@@ -14,6 +14,12 @@ Initial findings (examples)
 - scripts/validate_quick.py
 - scripts/validate_websearch.py
 
+
+Status updates (migrated in this pass)
+- scripts/validate_quick.py  now uses src.providers.*
+- scripts/validate_websearch.py  now uses src.providers.*
+- tools/selfcheck.py  now uses src.providers.registry
+
 Notes
 - Many tests intentionally import from `providers.*` to validate the shimmed surface; this is acceptable during the migration window
 - Tools generally import from `src.providers.*` already (e.g., tools/listmodels.py)

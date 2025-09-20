@@ -242,3 +242,4 @@
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2328, "output_tokens": 64, "t": 1758362529.5651977}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2038, "output_tokens": 483, "t": 1758362539.8903651}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2040, "output_tokens": 6, "t": 1758363241.771163}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2049, "output_tokens": 5, "t": 1758363421.791403}
