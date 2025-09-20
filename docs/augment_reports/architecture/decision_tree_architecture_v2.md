@@ -46,3 +46,10 @@ Notes on duplicate domains
 - See docs/augment_reports/audit/duplicate_domains_map.md for details
 - Canonical choices here assume src/providers and tools/ are authoritative
 
+
+
+## Status update — 2025-09-20
+- Canonical providers tree is src/providers/*; legacy providers/* remains only as import shims during the migration window.
+- Reverse shim eliminated plan: src/providers/zhipu_optional.py no longer imports providers.* (replaced with an optional SDK loader).
+- Router diagnostics: src/router/service.py now supports ROUTER_DIAGNOSTICS_ENABLED=true to emit structured route_diagnostics with candidate order and provider availability.
+- Next: keep tests as-is for now (some intentionally use legacy paths); block non-test imports of providers.* in CI.

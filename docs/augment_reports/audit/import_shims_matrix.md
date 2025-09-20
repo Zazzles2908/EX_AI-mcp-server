@@ -24,3 +24,7 @@ Mechanism
 Removal
 - After Phase F (post-green window), remove top-level providers/* and the shims
 
+
+
+Notes (2025-09-20)
+- Reverse shim replaced: src/providers/zhipu_optional.py no longer imports providers.*; it now exposes an SDK-aware optional loader.

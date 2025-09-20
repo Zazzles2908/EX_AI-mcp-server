@@ -17,6 +17,11 @@ Plan
 4) Logging: Record final decision and whether a hint was applied
 5) Tests: Decision table tests for common TaskTypes (web, vision, long_context, code)
 
+6) Diagnostics: Add ROUTER_DIAGNOSTICS_ENABLED=true to emit route_diagnostics with candidate order, hint_candidates, and provider availability counts.
+
+Validation addendum (2025-09-20)
+- With diagnostics enabled, expect router logs to include both route_decision and route_diagnostics events.
+
 Validation
 - Run targeted tests for RouterService decisions
 - Enable DEBUG logs; confirm single decision path and hint application

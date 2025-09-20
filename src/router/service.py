@@ -45,6 +45,8 @@ class RouterService:
         # Env-tunable preferred models
         self._fast_default = os.getenv("FAST_MODEL_DEFAULT", "glm-4.5-flash")
         self._long_default = os.getenv("LONG_MODEL_DEFAULT", "kimi-k2-0711-preview")
+        # Verbose diagnostics flag (opt-in)
+        self._diag_enabled = os.getenv("ROUTER_DIAGNOSTICS_ENABLED", "false").strip().lower() == "true"
         # Minimal JSON logging
         logger.setLevel(getattr(logging, os.getenv("ROUTER_LOG_LEVEL", "INFO").upper(), logging.INFO))
 
@@ -144,6 +146,24 @@ class RouterService:
         for m in (*hint_candidates, *default_order):
             if isinstance(m, str) and m and m not in order:
                 order.append(m)
+
+        # Optional detailed diagnostics
+        if self._diag_enabled:
+            try:
+                avail = R.get_available_models(respect_restrictions=True)
+                by_provider: Dict[str, int] = {}
+                for _, ptype in avail.items():
+                    by_provider[ptype.name] = by_provider.get(ptype.name, 0) + 1
+                logger.info(json.dumps({
+                    "event": "route_diagnostics",
+                    "requested": req,
+                    "hint_candidates": hint_candidates,
+                    "default_order": default_order,
+                    "order": order,
+                    "available_providers_counts": by_provider,
+                }, ensure_ascii=False))
+            except Exception as e:
+                logger.debug(json.dumps({"event": "route_diagnostics_error", "error": str(e)}))
 
         for candidate in order:
             prov = R.get_provider_for_model(candidate)
