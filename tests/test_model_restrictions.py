@@ -1,5 +1,14 @@
 """Tests for model restriction functionality."""
 
+import importlib.util as _il_util, pytest as _pytest
+_missing = []
+if _il_util.find_spec("providers.gemini") is None:
+    _missing.append("Gemini")
+if _il_util.find_spec("providers.openai_provider") is None:
+    _missing.append("OpenAI")
+if _missing:
+    _pytest.skip(f"Skipping: unavailable providers: {', '.join(_missing)}", allow_module_level=True)
+
 import os
 from unittest.mock import MagicMock, patch
 

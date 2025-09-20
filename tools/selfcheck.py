@@ -66,7 +66,7 @@ class SelfCheckTool(BaseTool):
         return response
 
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
-        from providers.registry import ModelProviderRegistry
+        from src.providers.registry import ModelProviderRegistry
 
         log_lines = int(arguments.get("log_lines") or 40)
 

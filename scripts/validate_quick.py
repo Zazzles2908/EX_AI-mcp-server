@@ -1,6 +1,11 @@
 import os, sys, importlib.util, json, traceback
 from pathlib import Path
 
+# Ensure project root on sys.path for src.* imports
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
 # Load .env if present (and capture raw file values separately from process env)
 file_env = {}
 try:
@@ -44,9 +49,10 @@ except Exception as e:
 
 try:
     # Minimal provider registration (mimics server logic without starting it)
-    from providers.registry import ModelProviderRegistry, ProviderType
-    from providers.kimi import KimiModelProvider as _Kimi
-    from providers.glm import GLMModelProvider as _GLM
+    from src.providers.registry import ModelProviderRegistry
+    from src.providers.base import ProviderType
+    from src.providers.kimi import KimiModelProvider as _Kimi
+    from src.providers.glm import GLMModelProvider as _GLM
     disabled = {p.strip().upper() for p in (os.getenv("DISABLED_PROVIDERS") or file_env.get("DISABLED_PROVIDERS") or "").split(",") if p.strip()}
     if (os.getenv("KIMI_API_KEY") or file_env.get("KIMI_API_KEY")) and "KIMI" not in disabled:
         ModelProviderRegistry.register_provider(ProviderType.KIMI, _Kimi)
@@ -68,7 +74,8 @@ except Exception as e:
 # Note: Will attempt network calls; failures are captured.
 
 def _try_completion(ptype, model, prompt):
-    from providers.registry import ModelProviderRegistry, ProviderType
+    from src.providers.registry import ModelProviderRegistry
+    from src.providers.base import ProviderType
     prov = ModelProviderRegistry.get_provider(getattr(ProviderType, ptype))
     if not prov:
         return {"ok": False, "error": "provider_unavailable"}

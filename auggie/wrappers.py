@@ -20,8 +20,8 @@ import logging
 from typing import Any, Optional
 import os
 
-from providers.base import ModelResponse
-from providers.registry import ModelProviderRegistry as Registry
+from src.providers.base import ModelResponse
+from src.providers.registry import ModelProviderRegistry as Registry
 from auggie.selector import select_model
 from auggie.templates import render_template
 
