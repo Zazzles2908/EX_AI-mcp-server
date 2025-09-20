@@ -247,3 +247,20 @@
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2327, "output_tokens": 5, "t": 1758365458.1104913}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2063, "output_tokens": 16, "t": 1758366942.978946}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2062, "output_tokens": 5, "t": 1758370600.2825792}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2054, "output_tokens": 8, "t": 1758370811.8836741}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2344, "output_tokens": 28, "t": 1758371932.365444}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2351, "output_tokens": 21, "t": 1758372587.5305579}
+{"event": "token_usage", "provider": "kimi", "model": "moonshot-v1-8k-vision-preview", "input_tokens": 12, "output_tokens": 25, "t": 1758375021.4459207}
+{"event": "token_usage", "provider": "kimi", "model": "moonshot-v1-8k-vision-preview", "input_tokens": 8, "output_tokens": 59, "t": 1758375023.3436086}
+{"event": "provider_error", "provider": "unknown", "model": "kimi-k2-thinking", "error_type": "call_failed", "message": "No provider for model kimi-k2-thinking", "t": 1758375023.3550534}
+{"event": "token_usage", "provider": "kimi", "model": "kimi-k2-0711-preview", "input_tokens": 8, "output_tokens": 87, "t": 1758375028.3537762}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2338, "output_tokens": 364, "t": 1758375042.151696}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 17341, "output_tokens": 178, "t": 1758375048.9918568}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2330, "output_tokens": 267, "t": 1758375053.3728058}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 10659, "output_tokens": 128, "t": 1758375060.970302}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2336, "output_tokens": 257, "t": 1758375068.2459486}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2330, "output_tokens": 267, "t": 1758375074.9979024}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2334, "output_tokens": 536, "t": 1758375087.654765}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2356, "output_tokens": 5, "t": 1758375088.3032975}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2350, "output_tokens": 421, "t": 1758375094.138315}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2324, "output_tokens": 214, "t": 1758375104.3384163}

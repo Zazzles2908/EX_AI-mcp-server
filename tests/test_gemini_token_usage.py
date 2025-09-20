@@ -1,5 +1,9 @@
 """Tests for Gemini provider token usage extraction."""
 
+import importlib.util as _il_util, pytest as _pytest
+if _il_util.find_spec("providers.gemini") is None:
+    _pytest.skip("Skipping: Gemini provider not available in this fork", allow_module_level=True)
+
 import unittest
 from unittest.mock import Mock
 

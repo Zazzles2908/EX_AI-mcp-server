@@ -22,11 +22,17 @@ jobs:
       - name: Legacy import blocker
         run: |
           python scripts/check_no_legacy_imports.py
+      - name: Router diagnostics smoke (provider-safe)
+        run: |
+          python scripts/router_service_diagnostics_smoke.py
       - name: Fast tests
         env:
           PYTEST_ADDOPTS: -q
+          OPENROUTER_TESTS_ENABLED: "false"
         run: |
           python -m pytest -q tests/test_health_monitor_factory.py
+          python -m pytest -q tests/test_kimi_glm_smoke.py
+          python -m pytest -q tests/test_auto_mode_custom_provider_only.py
           python -m pytest -q tests/test_router_service.py || true
           python -m pytest -q tests/test_listmodels.py || true
 

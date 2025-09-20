@@ -48,7 +48,45 @@ Owner: Augment Agent
 
 
 ## Next candidates to remove (pending full confirmation)
+
+### Detailed file list (shim removal plan)
+
+Providers shim (top-level providers/ — remove entire directory after stabilization). Files to delete:
+- providers/__init__.py
+- providers/balancer.py
+- providers/base.py
+- providers/glm.py
+- providers/hybrid_platform_manager.py
+- providers/kimi.py
+- providers/openai_compatible.py
+- providers/registry.py
+- providers/zhipu_optional.py
+- providers/moonshot/provider.py
+- providers/zhipu/provider.py
+
+Routing shim (top-level routing/ — remove entire directory after stabilization). Files to delete:
+- routing/task_router.py
+
+Notes
+
+## Phase‑F deletion rollup (after stabilization window)
+- Delete entire providers/ directory (top-level shim tree)
+- Delete entire routing/ directory (top-level shim tree)
+- Confirm src/tools/ remains removed (ghost)
+
+Caveats
+- If external users import providers.* explicitly, keep a minimal providers/__init__.py that raises a clear ImportError with migration instructions. Otherwise remove wholesale.
+- Preserve CHANGELOG entries and link this file in the PR description for traceability.
+
+- __pycache__ directories and .pyc files are runtime artifacts and are not tracked; they will be removed automatically when deleting directories.
+- Keep this list as the authoritative deletion checklist for the post-green window.
+
 - providers/* and routing/* shims after all imports/tests are updated to `src.*`
 
 - Redundant validation wrappers once a single consolidated smoke script exists
 
+
+
+Notes (this pass)
+- OpenRouter-focused tests are skipped by default unless OPENROUTER_TESTS_ENABLED=true (optional upstream; avoids network/config flakiness during consolidation)
+- Gemini mixed-keys routing test is skipped if providers.gemini is not present in this fork

@@ -33,12 +33,22 @@ Status updates (migrated in this pass)
 - simulator_tests/conversation_base_test.py — provider import migrated for in-process tool runner
 - patch/patch_crossplatform.py — patched embedded test content to src.providers.registry
 
+
+Status updates (this pass)
+- tests/conftest.py — base/custom now from src.providers.*
+- tests/test_kimi_glm_smoke.py — migrated to src.providers.(registry,base,kimi,glm)
+- tests/test_auto_mode_custom_provider_only.py — migrated to src.providers.(base,registry,custom)
+- tests/test_provider_routing_bugs.py — uses src.providers for (base,registry,openrouter); gemini/openai imports intentionally left legacy (upstream optional providers)
+
 Validation
 - Non-test legacy import blocker: PASS locally and enforced in CI
 
 Notes
 - Many tests intentionally import from `providers.*` to validate the shimmed surface; this is acceptable during the migration window
 - Tools generally import from `src.providers.*` already (e.g., tools/listmodels.py)
+
+- OpenRouter-focused tests are skipped by default unless OPENROUTER_TESTS_ENABLED=true
+- Mixed-keys routing test is skipped when providers.gemini is unavailable in this fork
 
 Next actions
 - Keep the shim active until Phase F removal
