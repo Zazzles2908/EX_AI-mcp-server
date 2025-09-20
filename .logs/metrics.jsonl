@@ -225,3 +225,7 @@
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2465, "output_tokens": 347, "t": 1758112415.211466}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2528, "output_tokens": 410, "t": 1758113348.2539072}
 {"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2063, "output_tokens": 29, "t": 1758117581.4631433}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2329, "output_tokens": 70, "t": 1758359937.033992}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2039, "output_tokens": 246, "t": 1758359941.3781567}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2328, "output_tokens": 68, "t": 1758359942.9449248}
+{"event": "token_usage", "provider": "glm", "model": "glm-4.5-air", "input_tokens": 2038, "output_tokens": 149, "t": 1758359945.6227198}

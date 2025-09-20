@@ -1,6 +1,11 @@
 import os, sys, importlib.util, json, traceback
 from pathlib import Path
 
+# Ensure project root on sys.path for src.* imports
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+if str(PROJECT_DIR) not in sys.path:
+    sys.path.insert(0, str(PROJECT_DIR))
+
 # Load .env if present (and capture raw file values separately from process env)
 file_env = {}
 try:
