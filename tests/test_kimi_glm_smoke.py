@@ -1,10 +1,10 @@
 import os
 import pytest
 
-from providers.registry import ModelProviderRegistry
-from providers.base import ProviderType
-from providers.moonshot.provider import KimiModelProvider
-from providers.zhipu.provider import GLMModelProvider
+from src.providers.registry import ModelProviderRegistry
+from src.providers.base import ProviderType
+from src.providers.kimi import KimiModelProvider
+from src.providers.glm import GLMModelProvider
 
 
 def setup_module(module):

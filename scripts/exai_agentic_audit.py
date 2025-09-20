@@ -35,7 +35,7 @@ except Exception as e:
 DEFAULT_FILES = [
     "server.py",
     "tools/consensus.py",
-    "providers/registry.py",
+    "src/providers/registry.py",
     "README.md",
 ]
 

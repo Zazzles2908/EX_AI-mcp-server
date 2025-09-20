@@ -4,7 +4,7 @@ import asyncio
 from typing import Dict
 
 from monitoring.health_monitor import HealthMonitor
-from providers.hybrid_platform_manager import HybridPlatformManager
+from src.providers.hybrid_platform_manager import HybridPlatformManager
 
 
 def build_health_monitor_with_platforms(hpm: HybridPlatformManager) -> HealthMonitor:

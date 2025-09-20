@@ -58,6 +58,7 @@ class GLMModelProvider(ModelProvider):
             supports_system_prompts=True,
             supports_extended_thinking=False,
             description="GLM 4.5 Air",
+            aliases=["glm-4.5-x"],
         ),
     }
 

@@ -52,7 +52,7 @@ async def call_chat(session: ClientSession):
     if os.getenv('KIMI_API_KEY'):
         model = 'kimi-k2-0711-preview'
     elif os.getenv('GLM_API_KEY'):
-        model = 'glm-4-flash'  # if unsupported, server will guide
+        model = 'glm-4.5-air'  # prefer a known-allowed model per .env
     if not model:
         print('CHAT: skipped (no KIMI_API_KEY or GLM_API_KEY)')
         return

@@ -24,9 +24,10 @@ chat = tr.get_tool('chat')
 
 # Provider registry and availability
 try:
-    from providers.registry import ModelProviderRegistry, ProviderType
-    from providers.kimi import KimiModelProvider as _Kimi
-    from providers.glm import GLMModelProvider as _GLM
+    from src.providers.registry import ModelProviderRegistry
+    from src.providers.base import ProviderType
+    from src.providers.kimi import KimiModelProvider as _Kimi
+    from src.providers.glm import GLMModelProvider as _GLM
     disabled = {p.strip().upper() for p in (os.getenv("DISABLED_PROVIDERS") or "").split(",") if p.strip()}
     if (os.getenv("KIMI_API_KEY")) and "KIMI" not in disabled:
         ModelProviderRegistry.register_provider(ProviderType.KIMI, _Kimi)

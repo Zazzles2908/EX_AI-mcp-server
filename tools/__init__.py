@@ -1,5 +1,5 @@
 """
-Tool implementations for Zen MCP Server
+Tool implementations for EXAI MCP Server
 """
 
 from .analyze import AnalyzeTool
