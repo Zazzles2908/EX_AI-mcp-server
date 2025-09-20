@@ -36,6 +36,13 @@ Owner: Augment Agent
 
 - tools/selfcheck.py — migrated to src.providers.registry import
 
+- auggie/wrappers.py — imports migrated to src.providers.base/registry
+- auggie/model_discovery.py — imports migrated to src.providers.registry
+- auggie/selector.py — imports migrated to src.providers.registry
+- auggie/compare.py — imports migrated to src.providers.registry
+- auggie/perf.py — imports migrated to src.providers.registry
+- docs/standard_tools/adding_providers.md — best practices now reference src/providers/*
+
 ## Next candidates to remove (pending full confirmation)
 - providers/* and routing/* shims after all imports/tests are updated to `src.*`
 - Redundant validation wrappers once a single consolidated smoke script exists

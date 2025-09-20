@@ -20,6 +20,12 @@ Status updates (migrated in this pass)
 - scripts/validate_websearch.py  now uses src.providers.*
 - tools/selfcheck.py  now uses src.providers.registry
 
+- auggie/wrappers.py  now uses src.providers.base and src.providers.registry
+- auggie/model_discovery.py  now uses src.providers.registry
+- auggie/selector.py  now uses src.providers.registry
+- auggie/compare.py  now uses src.providers.registry
+- auggie/perf.py  now uses src.providers.registry
+
 Notes
 - Many tests intentionally import from `providers.*` to validate the shimmed surface; this is acceptable during the migration window
 - Tools generally import from `src.providers.*` already (e.g., tools/listmodels.py)

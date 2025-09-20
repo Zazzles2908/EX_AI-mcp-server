@@ -292,7 +292,7 @@ Without this, API calls with aliases like `"large"` will fail because your API d
 - **Include descriptive aliases** for better user experience  
 - **Add error handling** and logging for debugging
 - **Test with real API calls** to verify everything works
-- **Follow the existing patterns** in `providers/gemini.py` and `providers/custom.py`
+- **Follow the existing patterns** in `src/providers/openai_compatible.py` and `src/providers/custom.py`
 
 ## Quick Checklist
 

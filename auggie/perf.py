@@ -9,7 +9,7 @@ from __future__ import annotations
 from statistics import mean
 from typing import Any, Dict, List
 
-from providers.registry import ModelProviderRegistry as Registry
+from src.providers.registry import ModelProviderRegistry as Registry
 
 
 def aggregate_telemetry() -> Dict[str, Dict[str, Any]]:
