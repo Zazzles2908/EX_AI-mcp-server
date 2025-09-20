@@ -4,29 +4,18 @@ Status: Visual quick reference
 
 ```mermaid
 graph TD
-  subgraph ClientSide
-    U[User / IDE / CLI]
-    MCPClient[MCP Client]
-  end
-
-  U --> MCPClient
-  MCPClient -->|JSON-RPC stdio+WS| Server[server.py]
-
-  Server --> LT[list_tools]
-  Server --> CT[handle_call_tool]
-  CT --> Tool[tools/*]
-
-  Tool --> Router[RouterService (src/router/service.py)]
-  Router --> Conf[configure_providers()]
-  Conf --> Registry[ModelProviderRegistry (src/providers/registry.py)]
-
-  Registry -->|selects| Provider[Provider impl]
-  Provider -->|SDK or HTTP| External[GLM / Kimi / OpenAI-Compatible APIs]
-
-  Tool -. heuristic .-> ATR[IntelligentTaskRouter (src/core/agentic/task_router.py)]
-  ATR -. suggest .-> Router
-
-  Server --> Logs[.logs/*]
+  U[Client] --> C[MCP Client]
+  C --> S[Server]
+  S --> LT[list_tools]
+  S --> CT[handle_call_tool]
+  CT --> T[tools]
+  T --> R[RouterService]
+  R --> REG[ModelProviderRegistry]
+  REG --> P[Provider]
+  P --> X[Upstream APIs]
+  T -.-> AR[IntelligentTaskRouter]
+  AR -.-> R
+  S --> L[logs]
 ```
 
 Notes
