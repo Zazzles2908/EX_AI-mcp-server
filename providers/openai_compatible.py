@@ -1,3 +1,7 @@
+# DEPRECATED: Canonical base lives under src/providers/openai_compatible.py
+# This file is frozen and will be removed after migration Phase F.
+# Import from src.providers.* going forward.
+
 """Base class for OpenAI-compatible API providers."""
 
 import copy

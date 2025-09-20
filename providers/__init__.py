@@ -55,3 +55,51 @@ try:
     _sys.modules.setdefault("providers.metadata", _src_metadata)
 except Exception:
     pass
+
+
+# Additional legacy re-exports to src.providers.* (non-destructive shims)
+try:
+    from src.providers import base as _src_base
+    _sys.modules.setdefault("providers.base", _src_base)
+except Exception:
+    pass
+
+try:
+    from src.providers import openai_compatible as _src_oac
+    _sys.modules.setdefault("providers.openai_compatible", _src_oac)
+except Exception:
+    pass
+
+try:
+    from src.providers import glm as _src_glm
+    _sys.modules.setdefault("providers.glm", _src_glm)
+except Exception:
+    pass
+
+try:
+    from src.providers import kimi as _src_kimi
+    _sys.modules.setdefault("providers.kimi", _src_kimi)
+except Exception:
+    pass
+
+try:
+    from src.providers import zhipu_optional as _src_zhipu_opt
+    _sys.modules.setdefault("providers.zhipu_optional", _src_zhipu_opt)
+except Exception:
+    pass
+
+# Package-level shims (packages map cleanly to src packages)
+try:
+    from src.providers import moonshot as _src_moonshot
+    _sys.modules.setdefault("providers.moonshot", _src_moonshot)
+except Exception:
+    pass
+
+try:
+    from src.providers import zhipu as _src_zhipu
+    _sys.modules.setdefault("providers.zhipu", _src_zhipu)
+except Exception:
+    pass
+
+# Deprecation note: top-level providers.* modules are shims. Canonical lives in src/providers.
+# Pre-populated sys.modules above maps submodules to src.providers so imports resolve consistently.

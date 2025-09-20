@@ -1,3 +1,6 @@
+# DEPRECATION NOTE: Consider migrating to src/core/agentic/hybrid_platform_manager.py patterns.
+# This file will be reviewed for Phase B/C; no behavior change in Phase A.
+
 from __future__ import annotations
 
 from typing import List

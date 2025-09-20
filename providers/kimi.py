@@ -1,4 +1,8 @@
-﻿"""Kimi (Moonshot AI) model provider implementation."""
+﻿# DEPRECATED: Canonical provider lives under src/providers/kimi.py
+# This file is frozen and will be removed after migration Phase F.
+# Import from src.providers.* going forward.
+
+"""Kimi (Moonshot AI) model provider implementation."""
 
 import logging
 from typing import Optional

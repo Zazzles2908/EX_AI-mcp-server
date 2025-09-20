@@ -1,3 +1,6 @@
+# DEPRECATION NOTE: Canonical hybrid manager lives under src/core/agentic/hybrid_platform_manager.py
+# This file is frozen and will be evaluated for removal after routing unification.
+
 from __future__ import annotations
 
 import os
