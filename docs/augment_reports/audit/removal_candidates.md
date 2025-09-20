@@ -45,5 +45,7 @@ Owner: Augment Agent
 
 ## Next candidates to remove (pending full confirmation)
 - providers/* and routing/* shims after all imports/tests are updated to `src.*`
+- src/providers/zhipu_optional.py — reverse shim (imports from providers.*); replace with internal optional loader before shim removal
+
 - Redundant validation wrappers once a single consolidated smoke script exists
 
