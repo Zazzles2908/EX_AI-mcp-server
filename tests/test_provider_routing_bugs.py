@@ -163,6 +163,8 @@ class TestProviderRoutingBugs:
                 else:
                     os.environ[key] = value
 
+    @pytest.mark.optional_provider
+
     @pytest.mark.no_mock_provider
     def test_mixed_api_keys_correct_routing(self):
         """

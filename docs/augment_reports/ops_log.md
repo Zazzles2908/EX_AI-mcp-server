@@ -62,3 +62,31 @@ What changed (by group)
 Notes
 - This is a batch migration aligned to Duplicate Domains Map and Decision Tree Architecture: canonical providers live under src/providers/*; top-level providers/* remains as a temporary shim/legacy home for optional modules.
 - No server restart required for test-only import path adjustments.
+
+
+### Phase C — Test sweep (Batch C2: routing import scan)
+
+Summary (Batch outcome)
+- ONE-LINE: YES — Only intentional legacy routing import found (tests/test_task_router_mvp.py). Kept as shim test by design.
+- Scope: full tests/ scan for `from routing.` / `import routing.`
+
+Notes
+- All other tests already use `src.router.service` or `src.core.agentic.*`.
+- No code changes required in this batch.
+
+
+### Phase C — Test sweep (Batch C3: optional provider tests classification)
+
+Summary (Batch outcome)
+- ONE-LINE: YES — Introduced `optional_provider` pytest marker; tagged Gemini/OpenAI-dependent tests; preserved coverage where env is present.
+- Scope: pytest.ini; tests/test_alias_target_restrictions.py; tests/test_provider_routing_bugs.py (targeted function)
+
+What changed
+- pytest.ini: added marker definition `optional_provider`
+- tests/test_alias_target_restrictions.py: added module-level `pytestmark = pytest.mark.optional_provider`
+- tests/test_provider_routing_bugs.py: added `@pytest.mark.optional_provider` to `test_mixed_api_keys_correct_routing` (the only test requiring Gemini/OpenAI presence)
+
+Notes
+- We chose targeted marking over broad file skipping to retain OpenRouter-only coverage inside the same module.
+- CI can now deselect optional providers with `-m "not optional_provider"` if desired; tests still run locally when env keys are provided.
+- No server restart required for these marker-only and import-clarity changes.
