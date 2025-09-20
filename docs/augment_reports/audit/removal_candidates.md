@@ -4,7 +4,7 @@ Status: Do not delete yet. This list is for post-confirmation cleanup after the 
 
 ## Legacy shim trees
 - providers/* (top-level) — shim layer redirecting to src/providers/*
-- routing/* (top-level) — shim re-export to src/core/agentic/task_router.py
+- routing/* (top-level) — now a thin shim to src/core/agentic/task_router.py; safe to remove post-green window
 
 Rationale: Canonical code now lives under src/providers/* and src/router/* (plus src/core/agentic/*). Shims exist only for backward compatibility during migration.
 
@@ -43,9 +43,10 @@ Owner: Augment Agent
 - auggie/perf.py — imports migrated to src.providers.registry
 - docs/standard_tools/adding_providers.md — best practices now reference src/providers/*
 
+- src/providers/zhipu_optional.py — reverse shim removed; now an internal SDK-aware optional loader (no providers.* import)
+
 ## Next candidates to remove (pending full confirmation)
 - providers/* and routing/* shims after all imports/tests are updated to `src.*`
-- src/providers/zhipu_optional.py — reverse shim (imports from providers.*); replace with internal optional loader before shim removal
 
 - Redundant validation wrappers once a single consolidated smoke script exists
 

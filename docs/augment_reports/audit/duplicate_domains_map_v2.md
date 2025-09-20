@@ -26,9 +26,9 @@ Evidence by domain
 - Risk: two registries and two base providers can diverge; imports in different parts of the app may point to different ones at runtime.
 
 2) Routing vs Router (overlapping concerns)
-- routing/task_router.py (IntelligentTaskRouter; context-length and web/vision rules) vs src/core/agentic/task_router.py (similar classification with different defaults)
+- routing/task_router.py is now a deprecation shim re-exporting src/core/agentic/task_router.py (single canonical agentic router)
 - src/router/service.py (RouterService: preflight, choose_model, JSON decision logs). This is the canonical service used by server logic.
-- Risk: two task_router variants with different heuristics may lead to different platform decisions depending on import site.
+- Risk reduced: a single agentic router remains; RouterService stays authoritative and may use agentic hints.
 
 3) Tools
 - tools/ contains complete tool implementations used by server.py and lean registry
