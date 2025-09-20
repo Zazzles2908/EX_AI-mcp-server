@@ -190,3 +190,14 @@ logs/
 
 # Ignore JSONL logs
 .logs/*.jsonl
+
+
+# Ignore vendored GitHub CLI source tree under gh-cli; keep only the MCP server
+# This hides large upstream Go sources like gh-cli/internal/, gh-cli/git/, etc.
+# If you actually intend to vendor the full CLI source, remove these rules.
+/gh-cli/*
+!/gh-cli/mcp/
+/gh-cli/mcp/*
+!/gh-cli/mcp/gh-mcp/**
+# Always ignore local env in gh-cli
+/gh-cli/.env

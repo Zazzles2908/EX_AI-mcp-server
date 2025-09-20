@@ -31,5 +31,15 @@
         "PYTHONUNBUFFERED": "1"
       }
     }
+,
+    "gh-mcp": {
+      "type": "stdio",
+      "trust": true,
+      "command": "node",
+      "args": [
+        "C:/Project/Git_cli/gh-cli/mcp/gh-mcp/dist/server.js"
+      ],
+      "env": { "GH_HOST": "github.com" }
+    }
   }
 }
