@@ -45,7 +45,7 @@ ModelProviderRegistry.register_provider(ProviderType.GLM, GLMModelProvider)
 # Register CUSTOM provider if CUSTOM_API_URL is available (for integration tests)
 # But only if we're actually running integration tests, not unit tests
 if os.getenv("CUSTOM_API_URL") and "test_prompt_regression.py" in os.getenv("PYTEST_CURRENT_TEST", ""):
-    from providers.custom import CustomProvider  # noqa: E402
+    from src.providers.custom import CustomProvider  # noqa: E402
 
     def custom_provider_factory(api_key=None):
         """Factory function that creates CustomProvider with proper parameters."""
@@ -107,7 +107,7 @@ def mock_provider_availability(request, monkeypatch):
             return
 
     # Ensure providers are registered (in case other tests cleared the registry)
-    from providers.base import ProviderType
+    from src.providers.base import ProviderType
 
     registry = ModelProviderRegistry()
 
@@ -122,7 +122,7 @@ def mock_provider_availability(request, monkeypatch):
         and "test_prompt_regression.py" in os.getenv("PYTEST_CURRENT_TEST", "")
         and ProviderType.CUSTOM not in registry._providers
     ):
-        from providers.custom import CustomProvider
+        from src.providers.custom import CustomProvider
 
         def custom_provider_factory(api_key=None):
             base_url = os.getenv("CUSTOM_API_URL", "")

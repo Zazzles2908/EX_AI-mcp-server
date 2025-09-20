@@ -1,5 +1,8 @@
 # Removal Candidates (post-migration review)
 
+Source-of-truth: Active audit lives under docs/augment_reports/audit/. The docs/augment_reports/previous_audit/ folder is historical reference only.
+
+
 Status: Do not delete yet. This list is for post-confirmation cleanup after the full import/routing conversion is complete.
 
 ## Legacy shim trees

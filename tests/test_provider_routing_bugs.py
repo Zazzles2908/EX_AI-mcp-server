@@ -13,8 +13,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from providers.base import ProviderType
-from providers.registry import ModelProviderRegistry
+from src.providers.base import ProviderType
+from src.providers.registry import ModelProviderRegistry
 from tools.chat import ChatTool
 from tools.shared.base_models import ToolRequest
 
@@ -76,7 +76,7 @@ class TestProviderRoutingBugs:
             os.environ["OPENROUTER_API_KEY"] = "test-openrouter-key"
 
             # Register only OpenRouter provider (like in server.py:configure_providers)
-            from providers.openrouter import OpenRouterProvider
+            from src.providers.openrouter import OpenRouterProvider
 
             ModelProviderRegistry.register_provider(ProviderType.OPENROUTER, OpenRouterProvider)
 
@@ -190,7 +190,7 @@ class TestProviderRoutingBugs:
             # Register providers in priority order (like server.py)
             from providers.gemini import GeminiModelProvider
             from providers.openai_provider import OpenAIModelProvider
-            from providers.openrouter import OpenRouterProvider
+            from src.providers.openrouter import OpenRouterProvider
 
             ModelProviderRegistry.register_provider(ProviderType.GOOGLE, GeminiModelProvider)
             ModelProviderRegistry.register_provider(ProviderType.OPENAI, OpenAIModelProvider)
@@ -272,7 +272,7 @@ class TestOpenRouterAliasRestrictions:
             os.environ["OPENROUTER_ALLOWED_MODELS"] = "o3-mini,pro,gpt4.1,flash,o4-mini,o3"  # User's exact config
 
             # Register OpenRouter provider
-            from providers.openrouter import OpenRouterProvider
+            from src.providers.openrouter import OpenRouterProvider
 
             ModelProviderRegistry.register_provider(ProviderType.OPENROUTER, OpenRouterProvider)
 
@@ -347,7 +347,7 @@ class TestOpenRouterAliasRestrictions:
             os.environ["OPENROUTER_ALLOWED_MODELS"] = "o3-mini,anthropic/claude-opus-4,flash"
 
             # Register OpenRouter provider
-            from providers.openrouter import OpenRouterProvider
+            from src.providers.openrouter import OpenRouterProvider
 
             ModelProviderRegistry.register_provider(ProviderType.OPENROUTER, OpenRouterProvider)
 
