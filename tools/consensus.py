@@ -665,7 +665,7 @@ of the evidence, even when it strongly points in one direction.""",
             )
 
         # Validate each model availability
-        from providers.registry import ModelProviderRegistry
+        from src.providers.registry import ModelProviderRegistry
 
         unavailable: list[str] = []
         for m in models:
@@ -680,7 +680,7 @@ of the evidence, even when it strongly points in one direction.""",
                 hidden_enabled = os.getenv("HIDDEN_MODEL_ROUTER_ENABLED", "true").strip().lower() == "true"
                 sentinels = {s.strip().lower() for s in os.getenv("ROUTER_SENTINEL_MODELS", "glm-4.5-flash,auto").split(",") if s.strip()}
                 if hidden_enabled and name.strip().lower() in sentinels:
-                    from providers.registry import ModelProviderRegistry as _Reg
+                    from src.providers.registry import ModelProviderRegistry as _Reg
                     routed = _Reg.get_preferred_fallback_model(None)
                     if routed:
                         resolved = routed

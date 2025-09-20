@@ -973,7 +973,7 @@ fi"""
 
         # 2. Add the mock setup to return Path objects for the resolve_and_validate_path
         old_test_start = '''        """Test that conversation history includes embedded file content"""
-        from providers.registry import ModelProviderRegistry
+        from src.providers.registry import ModelProviderRegistry
 
         ModelProviderRegistry.clear_cache()
 
@@ -995,7 +995,7 @@ fi"""
         # Create test file with known content in a project-like structure'''
 
         new_test_start = '''        """Test that conversation history includes embedded file content"""
-        from providers.registry import ModelProviderRegistry
+        from src.providers.registry import ModelProviderRegistry
 
         ModelProviderRegistry.clear_cache()
 

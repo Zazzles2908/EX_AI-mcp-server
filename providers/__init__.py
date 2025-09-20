@@ -55,3 +55,10 @@ try:
     _sys.modules.setdefault("providers.metadata", _src_metadata)
 except Exception:
     pass
+
+
+try:
+    from src.providers import hybrid_platform_manager as _src_hpm
+    _sys.modules.setdefault("providers.hybrid_platform_manager", _src_hpm)
+except Exception:
+    pass
