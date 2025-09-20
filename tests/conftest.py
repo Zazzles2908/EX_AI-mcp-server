@@ -107,7 +107,7 @@ def mock_provider_availability(request, monkeypatch):
             return
 
     # Ensure providers are registered (in case other tests cleared the registry)
-    from providers.base import ProviderType
+    from src.providers.base import ProviderType
 
     registry = ModelProviderRegistry()
 
@@ -122,7 +122,7 @@ def mock_provider_availability(request, monkeypatch):
         and "test_prompt_regression.py" in os.getenv("PYTEST_CURRENT_TEST", "")
         and ProviderType.CUSTOM not in registry._providers
     ):
-        from providers.custom import CustomProvider
+        from src.providers.custom import CustomProvider
 
         def custom_provider_factory(api_key=None):
             base_url = os.getenv("CUSTOM_API_URL", "")

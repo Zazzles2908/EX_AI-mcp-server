@@ -43,3 +43,24 @@ pytest -xvs
 
 For in-depth details (testing strategy, simulator tests, PR checklist), see docs/contributions.md.
 
+
+
+## Consolidation guardrails (current phase)
+
+Canonical imports
+- Use `src.providers.*` for providers
+- Use `src/router/*` (service) and `src/core/agentic/*` (agentic hints)
+- Do not add new modules under top-level `providers/` or `routing/` (shim only)
+
+Shims and CI blocker
+- Top-level `providers/*` and `routing/*` are temporary shims for backward compatibility
+- CI runs `scripts/check_no_legacy_imports.py` to block new non-test imports of legacy paths
+
+Testing tips
+- Prefer targeted tests locally: `pytest -q tests/test_health_monitor_factory.py`
+- Fast CI: see `.github/workflows/fast-smoke.yml`
+- Some upstream provider suites (gemini/openai/dial) are optional in this fork; deselect in CI if needed (see `docs/standard_tools/ci-test-notes.md`)
+
+Docs hygiene
+- When changing imports/routing, update `docs/augment_reports/audit/*` (e.g., removal_candidates.md, legacy_imports_scan.md)
+- Remove shims only after a green window per the consolidation plan

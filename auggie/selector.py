@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Optional, Tuple
 
-from providers.registry import ModelProviderRegistry as Registry
+from src.providers.registry import ModelProviderRegistry as Registry
 from auggie.config import get_auggie_settings
 
 

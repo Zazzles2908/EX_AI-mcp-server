@@ -10,7 +10,7 @@ from __future__ import annotations
 import difflib
 from typing import Any, Optional
 
-from providers.registry import ModelProviderRegistry as Registry
+from src.providers.registry import ModelProviderRegistry as Registry
 
 
 def _score_response(prompt: str, text: str) -> dict[str, float]:

@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from providers.base import ProviderType
-from providers.registry import ModelProviderRegistry
+from src.providers.base import ProviderType
+from src.providers.registry import ModelProviderRegistry
 
 
 @pytest.mark.no_mock_provider
@@ -67,6 +67,7 @@ class TestAutoModeCustomProviderOnly:
             "CUSTOM_API_URL": "http://localhost:11434/v1",
             "CUSTOM_API_KEY": "",  # Empty for Ollama-style
             "DEFAULT_MODEL": "auto",
+            "ALLOWED_PROVIDERS": "",  # Ensure no gating during tests
         }
 
         # Clear all other provider keys
@@ -84,7 +85,7 @@ class TestAutoModeCustomProviderOnly:
             importlib.reload(config)
 
             # Register only the custom provider (simulating server startup)
-            from providers.custom import CustomProvider
+            from src.providers.custom import CustomProvider
 
             ModelProviderRegistry.register_provider(ProviderType.CUSTOM, CustomProvider)
 
@@ -105,6 +106,7 @@ class TestAutoModeCustomProviderOnly:
         test_env = {
             "CUSTOM_API_URL": "http://localhost:11434/v1",
             "CUSTOM_API_KEY": "",
+            "ALLOWED_PROVIDERS": "",
         }
 
         with patch.dict(os.environ, test_env, clear=False):
@@ -114,7 +116,7 @@ class TestAutoModeCustomProviderOnly:
                     del os.environ[key]
 
             # Register custom provider
-            from providers.custom import CustomProvider
+            from src.providers.custom import CustomProvider
 
             ModelProviderRegistry.register_provider(ProviderType.CUSTOM, CustomProvider)
 
@@ -144,11 +146,12 @@ class TestAutoModeCustomProviderOnly:
         test_env = {
             "CUSTOM_API_URL": "http://localhost:11434/v1",
             "CUSTOM_API_KEY": "",
+            "ALLOWED_PROVIDERS": "",
         }
 
         with patch.dict(os.environ, test_env, clear=False):
             # Register custom provider
-            from providers.custom import CustomProvider
+            from src.providers.custom import CustomProvider
 
             ModelProviderRegistry.register_provider(ProviderType.CUSTOM, CustomProvider)
 
@@ -173,6 +176,7 @@ class TestAutoModeCustomProviderOnly:
             "CUSTOM_API_URL": "http://localhost:11434/v1",
             "CUSTOM_API_KEY": "",
             "DEFAULT_MODEL": "auto",
+            "ALLOWED_PROVIDERS": "",
         }
 
         with patch.dict(os.environ, test_env, clear=False):
@@ -187,7 +191,7 @@ class TestAutoModeCustomProviderOnly:
             importlib.reload(config)
 
             # Register custom provider
-            from providers.custom import CustomProvider
+            from src.providers.custom import CustomProvider
 
             ModelProviderRegistry.register_provider(ProviderType.CUSTOM, CustomProvider)
 

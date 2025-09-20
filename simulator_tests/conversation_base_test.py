@@ -138,7 +138,7 @@ class ConversationBaseTest(BaseSimulatorTest):
 
             # Import required modules for model resolution (similar to server.py)
             from config import DEFAULT_MODEL
-            from providers.registry import ModelProviderRegistry
+            from src.providers.registry import ModelProviderRegistry
             from utils.model_context import ModelContext
 
             # Resolve model (simplified version of server.py logic)

@@ -4,6 +4,10 @@ Tests for alias and target model restriction validation.
 This test suite ensures that the restriction service properly validates
 both alias names and their target models, preventing policy bypass vulnerabilities.
 """
+import importlib.util as _il_util, pytest as _pytest
+if _il_util.find_spec("providers.gemini") is None or _il_util.find_spec("providers.openai_provider") is None:
+    _pytest.skip("Skipping: Gemini/OpenAI providers not available in this fork", allow_module_level=True)
+
 
 import os
 from unittest.mock import patch

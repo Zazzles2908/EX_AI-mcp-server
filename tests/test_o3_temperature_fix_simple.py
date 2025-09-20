@@ -4,6 +4,10 @@ Simple integration test for the O3 model temperature parameter fix.
 This test confirms that the fix properly excludes temperature parameters
 for O3 models while maintaining them for regular models.
 """
+import importlib.util as _il_util, pytest as _pytest
+if _il_util.find_spec("providers.openai_provider") is None:
+    _pytest.skip("Skipping: OpenAI provider not available in this fork", allow_module_level=True)
+
 
 from unittest.mock import Mock, patch
 
