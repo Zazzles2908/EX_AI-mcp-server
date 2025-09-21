@@ -507,13 +507,79 @@ class SimpleTool(BaseTool):
                 )
                 return result
 
-            use_fallback = (self._current_model_name.lower() == "auto") or (_os.getenv("FALLBACK_ON_FAILURE", "true").lower() == "true")
-            if use_fallback:
+            # Honor explicit model first; only use fallback chain when model=='auto' or on failure if enabled
+            _fb_on_failure = _os.getenv("FALLBACK_ON_FAILURE", "true").strip().lower() == "true"
+            _is_auto = (self._current_model_name or "").strip().lower() == "auto"
+
+            if not _is_auto:
+                # Try direct call to the explicitly-resolved model
+                try:
+                    logger.info(f"Sending request to {provider.get_provider_type().value} API for {self.get_name()}")
+                    logger.info(
+                        f"Using model: {self._model_context.model_name} via {provider.get_provider_type().value} provider"
+                    )
+                    # Provider-native web browsing via capability layer
+                    provider_kwargs = {}
+                    try:
+                        from src.providers.capabilities import get_capabilities_for_provider
+                        use_web = self.get_request_use_websearch(request)
+                        caps = get_capabilities_for_provider(provider.get_provider_type())
+                        ws = caps.get_websearch_tool_schema({"use_websearch": use_web})
+                        if ws.tools:
+                            provider_kwargs["tools"] = ws.tools
+                        if ws.tool_choice is not None:
+                            provider_kwargs["tool_choice"] = ws.tool_choice
+                    except Exception:
+                        pass
+                    model_response = provider.generate_content(
+                        prompt=prompt,
+                        model_name=self._current_model_name,
+                        system_prompt=system_prompt,
+                        temperature=temperature,
+                        thinking_mode=thinking_mode if provider.supports_thinking_mode(self._current_model_name) else None,
+                        images=images if images else None,
+                        **provider_kwargs,
+                    )
+                except Exception as _explicit_err:
+                    if _fb_on_failure:
+                        logger.warning(f"Explicit model call failed; entering fallback chain: {str(_explicit_err)}")
+                        tool_category = self.get_model_category()
+                        logger.info(f"Using fallback chain for category {tool_category.name}")
+                        # Derive simple hints for context-aware routing
+                        hints = []
+                        try:
+                            u = (self.get_request_prompt(request) or "").lower()
+                            if any(k in u for k in ("image", "diagram", "vision")):
+                                hints.append("vision")
+                            if any(k in u for k in ("think", "reason", "chain of thought", "deep")):
+                                hints.append("deep_reasoning")
+                        except Exception:
+                            pass
+                        try:
+                            if estimated_tokens and int(estimated_tokens) > 48000:
+                                hints.append("long_context")
+                                hints.append(f"estimated_tokens:{int(estimated_tokens)}")
+                        except Exception:
+                            pass
+                        try:
+                            user_prompt_raw = self.get_request_prompt(request) or ""
+                            raw_tokens = estimate_tokens(user_prompt_raw)
+                            if int(raw_tokens) > 48000:
+                                hints.append("long_context")
+                                hints.append(f"estimated_tokens:{int(raw_tokens)}")
+                        except Exception:
+                            pass
+                        model_response = _Registry.call_with_fallback(tool_category, _call_with_model, hints=hints)
+                        # Sync the model context and current name to the selected model
+                        self._current_model_name = selected_model
+                        self._model_context.model_name = selected_model
+                    else:
+                        raise
+            else:
+                # Auto mode: use category-aware fallback chain
                 tool_category = self.get_model_category()
                 logger.info(f"Using fallback chain for category {tool_category.name}")
-                # Derive simple hints for context-aware routing
                 hints = []
-                # Content-derived hints
                 try:
                     u = (self.get_request_prompt(request) or "").lower()
                     if any(k in u for k in ("image", "diagram", "vision")):
@@ -522,14 +588,12 @@ class SimpleTool(BaseTool):
                         hints.append("deep_reasoning")
                 except Exception:
                     pass
-                # Context-size hint (Option 2: dispatch metadata)
                 try:
                     if estimated_tokens and int(estimated_tokens) > 48000:
                         hints.append("long_context")
                         hints.append(f"estimated_tokens:{int(estimated_tokens)}")
                 except Exception:
                     pass
-                # Raw user-prompt size hint (pre-shaping): if the original user prompt itself is huge
                 try:
                     user_prompt_raw = self.get_request_prompt(request) or ""
                     raw_tokens = estimate_tokens(user_prompt_raw)
@@ -539,51 +603,8 @@ class SimpleTool(BaseTool):
                 except Exception:
                     pass
                 model_response = _Registry.call_with_fallback(tool_category, _call_with_model, hints=hints)
-                # Sync the model context and current name to the selected model
                 self._current_model_name = selected_model
                 self._model_context.model_name = selected_model
-                # End web tool timing if any
-                try:
-                    if 'web_event' in locals() and web_event is not None:
-                        web_event.end(ok=True)
-                        ToolEventSink().record(web_event)
-                except Exception:
-                    pass
-            else:
-                # Direct call without fallback
-                logger.info(f"Sending request to {provider.get_provider_type().value} API for {self.get_name()}")
-                logger.info(
-                    f"Using model: {self._model_context.model_name} via {provider.get_provider_type().value} provider"
-                )
-                # Provider-native web browsing via capability layer
-                provider_kwargs = {}
-                try:
-                    from src.providers.capabilities import get_capabilities_for_provider
-                    use_web = self.get_request_use_websearch(request)
-                    caps = get_capabilities_for_provider(provider.get_provider_type())
-                    ws = caps.get_websearch_tool_schema({"use_websearch": use_web})
-                    if ws.tools:
-                        provider_kwargs["tools"] = ws.tools
-                    if ws.tool_choice is not None:
-                        provider_kwargs["tool_choice"] = ws.tool_choice
-                except Exception:
-                    pass
-                model_response = provider.generate_content(
-                    prompt=prompt,
-                    model_name=self._current_model_name,
-                    system_prompt=system_prompt,
-                    temperature=temperature,
-                    thinking_mode=thinking_mode if provider.supports_thinking_mode(self._current_model_name) else None,
-                    images=images if images else None,
-                    **provider_kwargs,
-                )
-                # End web tool timing if any
-                try:
-                    if 'web_event' in locals() and web_event is not None:
-                        web_event.end(ok=True)
-                        ToolEventSink().record(web_event)
-                except Exception:
-                    pass
 
             logger.info(f"Received response from {provider.get_provider_type().value} API for {self.get_name()}")
 

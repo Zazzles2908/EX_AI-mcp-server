@@ -28,7 +28,7 @@ from config import TEMPERATURE_ANALYTICAL
 from systemprompts import REFACTOR_PROMPT
 from tools.shared.base_models import WorkflowRequest
 
-from .workflow.base import WorkflowTool
+from ..workflow.base import WorkflowTool
 
 logger = logging.getLogger(__name__)
 
@@ -231,7 +231,7 @@ class RefactorTool(WorkflowTool):
 
     def get_input_schema(self) -> dict[str, Any]:
         """Generate input schema using WorkflowSchemaBuilder with refactor-specific overrides."""
-        from .workflow.schema_builders import WorkflowSchemaBuilder
+        from ..workflow.schema_builders import WorkflowSchemaBuilder
 
         # Refactor workflow-specific field overrides
         refactor_field_overrides = {

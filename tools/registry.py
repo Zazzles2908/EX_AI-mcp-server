@@ -17,55 +17,55 @@ from typing import Any, Dict
 TOOL_MAP: Dict[str, tuple[str, str]] = {
     # Core
     "chat": ("tools.chat", "ChatTool"),
-    "analyze": ("tools.analyze", "AnalyzeTool"),
-    "debug": ("tools.debug", "DebugIssueTool"),
-    "codereview": ("tools.codereview", "CodeReviewTool"),
-    "refactor": ("tools.refactor", "RefactorTool"),
-    "secaudit": ("tools.secaudit", "SecauditTool"),
-    "planner": ("tools.planner", "PlannerTool"),
-    "tracer": ("tools.tracer", "TracerTool"),
-    "testgen": ("tools.testgen", "TestGenTool"),
-    "consensus": ("tools.consensus", "ConsensusTool"),
-    "thinkdeep": ("tools.thinkdeep", "ThinkDeepTool"),
-    "docgen": ("tools.docgen", "DocgenTool"),
+    "analyze": ("tools.workflows.analyze", "AnalyzeTool"),
+    "debug": ("tools.workflows.debug", "DebugIssueTool"),
+    "codereview": ("tools.workflows.codereview", "CodeReviewTool"),
+    "refactor": ("tools.workflows.refactor", "RefactorTool"),
+    "secaudit": ("tools.workflows.secaudit", "SecauditTool"),
+    "planner": ("tools.workflows.planner", "PlannerTool"),
+    "tracer": ("tools.workflows.tracer", "TracerTool"),
+    "testgen": ("tools.workflows.testgen", "TestGenTool"),
+    "consensus": ("tools.workflows.consensus", "ConsensusTool"),
+    "thinkdeep": ("tools.workflows.thinkdeep", "ThinkDeepTool"),
+    "docgen": ("tools.workflows.docgen", "DocgenTool"),
     # Utilities (always on)
-    "version": ("tools.version", "VersionTool"),
-    "listmodels": ("tools.listmodels", "ListModelsTool"),
+    "version": ("tools.capabilities.version", "VersionTool"),
+    "listmodels": ("tools.capabilities.listmodels", "ListModelsTool"),
     "self-check": ("tools.selfcheck", "SelfCheckTool"),
     # Web tools removed: internet access disabled in production build
 
     # Precommit and Challenge utilities
-    "precommit": ("tools.precommit", "PrecommitTool"),
+    "precommit": ("tools.workflows.precommit", "PrecommitTool"),
     "challenge": ("tools.challenge", "ChallengeTool"),
     # Orchestrators (aliases map to autopilot)
-    "orchestrate_auto": ("tools.autopilot", "AutopilotTool"),
+    "orchestrate_auto": ("tools.orchestrators.autopilot", "AutopilotTool"),
     # Kimi utilities
-    "kimi_upload_and_extract": ("tools.kimi_upload", "KimiUploadAndExtractTool"),
-    "kimi_multi_file_chat": ("tools.kimi_upload", "KimiMultiFileChatTool"),
+    "kimi_upload_and_extract": ("tools.providers.kimi.kimi_upload", "KimiUploadAndExtractTool"),
+    "kimi_multi_file_chat": ("tools.providers.kimi.kimi_upload", "KimiMultiFileChatTool"),
     # GLM utilities
-    "glm_upload_file": ("tools.glm_files", "GLMUploadFileTool"),
-    "glm_multi_file_chat": ("tools.glm_files", "GLMMultiFileChatTool"),
+    "glm_upload_file": ("tools.providers.glm.glm_files", "GLMUploadFileTool"),
+    "glm_multi_file_chat": ("tools.providers.glm.glm_files", "GLMMultiFileChatTool"),
     # GLM Agent APIs
-    "glm_agent_chat": ("tools.glm_agents", "GLMAgentChatTool"),
-    "glm_agent_get_result": ("tools.glm_agents", "GLMAgentGetResultTool"),
-    "glm_agent_conversation": ("tools.glm_agents", "GLMAgentConversationTool"),
+    "glm_agent_chat": ("tools.providers.glm.glm_agents", "GLMAgentChatTool"),
+    "glm_agent_get_result": ("tools.providers.glm.glm_agents", "GLMAgentGetResultTool"),
+    "glm_agent_conversation": ("tools.providers.glm.glm_agents", "GLMAgentConversationTool"),
     # Kimi chat with tools/tool_choice
-    "kimi_chat_with_tools": ("tools.kimi_tools_chat", "KimiChatWithToolsTool"),
+    "kimi_chat_with_tools": ("tools.providers.kimi.kimi_tools_chat", "KimiChatWithToolsTool"),
     # Diagnostics
-    "provider_capabilities": ("tools.provider_capabilities", "ProviderCapabilitiesTool"),
+    "provider_capabilities": ("tools.capabilities.provider_capabilities", "ProviderCapabilitiesTool"),
     # Observability helpers
-    "toolcall_log_tail": ("tools.toolcall_log_tail", "ToolcallLogTail"),
+    "toolcall_log_tail": ("tools.diagnostics.toolcall_log_tail", "ToolcallLogTail"),
     "activity": ("tools.activity", "ActivityTool"),
     # Health
-    "health": ("tools.health", "HealthTool"),
+    "health": ("tools.diagnostics.health", "HealthTool"),
     # Status alias (friendly summary)
-    "status": ("tools.status", "StatusTool"),
+    "status": ("tools.diagnostics.status", "StatusTool"),
     # Autopilot orchestrator (opt-in)
-    "autopilot": ("tools.autopilot", "AutopilotTool"),
+    "autopilot": ("tools.orchestrators.autopilot", "AutopilotTool"),
     # Browse orchestrator (alias to autopilot)
-    "browse_orchestrator": ("tools.autopilot", "AutopilotTool"),
+    "browse_orchestrator": ("tools.orchestrators.autopilot", "AutopilotTool"),
     # Streaming demo (utility)
-    "stream_demo": ("tools.stream_demo", "StreamDemoTool"),
+    "stream_demo": ("tools.streaming.stream_demo", "StreamDemoTool"),
 
 }
 # Visibility map for tools: 'core' | 'advanced' | 'hidden'

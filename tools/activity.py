@@ -233,7 +233,6 @@ class ActivityTool(SimpleTool):
                 return [TextContent(type="text", text=f"[activity:error] Invalid filter regex: {e}")]
 
         # Optional structured output (flag-gated)
-        import os
         ACTIVITY_STRUCTURED_OUTPUT_ENABLED = os.getenv("ACTIVITY_STRUCTURED_OUTPUT_ENABLED", "false").strip().lower() == "true"
         structured = bool(req.structured) if req.structured is not None else False
         if ACTIVITY_STRUCTURED_OUTPUT_ENABLED and structured:

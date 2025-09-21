@@ -32,7 +32,7 @@ from config import TEMPERATURE_BALANCED
 from systemprompts import PLANNER_PROMPT
 from tools.shared.base_models import WorkflowRequest
 
-from .workflow.base import WorkflowTool
+from ..workflow.base import WorkflowTool
 
 logger = logging.getLogger(__name__)
 
@@ -180,7 +180,7 @@ class PlannerTool(WorkflowTool):
 
     def get_input_schema(self) -> dict[str, Any]:
         """Generate input schema for planner workflow using override pattern."""
-        from .workflow.schema_builders import WorkflowSchemaBuilder
+        from ..workflow.schema_builders import WorkflowSchemaBuilder
 
         # Planner tool-specific field definitions
         planner_field_overrides = {

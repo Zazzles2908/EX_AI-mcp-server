@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 from mcp.types import TextContent
 
-from .shared.base_tool import BaseTool
+from tools.shared.base_tool import BaseTool
 from tools.shared.base_models import ToolRequest
 
 
