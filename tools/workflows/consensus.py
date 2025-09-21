@@ -30,7 +30,7 @@ from config import TEMPERATURE_ANALYTICAL
 from systemprompts import CONSENSUS_PROMPT
 from tools.shared.base_models import WorkflowRequest
 
-from .workflow.base import WorkflowTool
+from ..workflow.base import WorkflowTool
 
 logger = logging.getLogger(__name__)
 
@@ -243,7 +243,7 @@ of the evidence, even when it strongly points in one direction.""",
 
     def get_input_schema(self) -> dict[str, Any]:
         """Generate input schema for consensus workflow."""
-        from .workflow.schema_builders import WorkflowSchemaBuilder
+        from ..workflow.schema_builders import WorkflowSchemaBuilder
 
         # Consensus tool-specific field definitions
         consensus_field_overrides = {

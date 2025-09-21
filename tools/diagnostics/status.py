@@ -44,7 +44,7 @@ class StatusTool(BaseTool):
 
         # Provider summary
         try:
-            from tools.provider_capabilities import ProviderCapabilitiesTool
+            from tools.capabilities.provider_capabilities import ProviderCapabilitiesTool
             pc = ProviderCapabilitiesTool()
             pc_out = await pc.execute({"include_tools": include_tools})
             pc_json = json.loads(pc_out[0].text)
@@ -53,7 +53,7 @@ class StatusTool(BaseTool):
 
         # Health tails
         try:
-            from tools.health import HealthTool
+            from tools.diagnostics.health import HealthTool
             ht = HealthTool()
             h_out = await ht.execute({"tail_lines": tail})
             h_json = json.loads(h_out[0].text)
@@ -80,7 +80,7 @@ class StatusTool(BaseTool):
             doctor = {"probes": {}, "advice": []}
             # Probe listmodels
             try:
-                from tools.listmodels import ListModelsTool
+                from tools.capabilities.listmodels import ListModelsTool
                 lm = ListModelsTool()
                 lm_out = await lm.execute({})
                 lm_json = json.loads(lm_out[0].text)

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .shared.base_tool import BaseTool
+from tools.shared.base_tool import BaseTool
 from src.providers.registry import ModelProviderRegistry
 
 

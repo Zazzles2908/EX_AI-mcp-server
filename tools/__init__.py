@@ -2,22 +2,22 @@
 Tool implementations for EXAI MCP Server
 """
 
-from .analyze import AnalyzeTool
+from .workflows.analyze import AnalyzeTool
 from .challenge import ChallengeTool
 from .chat import ChatTool
-from .codereview import CodeReviewTool
-from .consensus import ConsensusTool
-from .debug import DebugIssueTool
-from .docgen import DocgenTool
-from .listmodels import ListModelsTool
-from .planner import PlannerTool
-from .precommit import PrecommitTool
-from .refactor import RefactorTool
-from .secaudit import SecauditTool
-from .testgen import TestGenTool
-from .thinkdeep import ThinkDeepTool
-from .tracer import TracerTool
-from .version import VersionTool
+from .workflows.codereview import CodeReviewTool
+from .workflows.consensus import ConsensusTool
+from .workflows.debug import DebugIssueTool
+from .workflows.docgen import DocgenTool
+from .capabilities.listmodels import ListModelsTool
+from .workflows.planner import PlannerTool
+from .workflows.precommit import PrecommitTool
+from .workflows.refactor import RefactorTool
+from .workflows.secaudit import SecauditTool
+from .workflows.testgen import TestGenTool
+from .workflows.thinkdeep import ThinkDeepTool
+from .workflows.tracer import TracerTool
+from .capabilities.version import VersionTool
 from .selfcheck import SelfCheckTool
 
 __all__ = [

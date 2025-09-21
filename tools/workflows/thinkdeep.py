@@ -28,7 +28,7 @@ from config import TEMPERATURE_CREATIVE
 from systemprompts import THINKDEEP_PROMPT
 from tools.shared.base_models import WorkflowRequest
 
-from .workflow.base import WorkflowTool
+from ..workflow.base import WorkflowTool
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +184,7 @@ class ThinkDeepTool(WorkflowTool):
 
     def get_input_schema(self) -> dict[str, Any]:
         """Generate input schema using WorkflowSchemaBuilder with thinkdeep-specific overrides."""
-        from .workflow.schema_builders import WorkflowSchemaBuilder
+        from ..workflow.schema_builders import WorkflowSchemaBuilder
 
         # ThinkDeep workflow-specific field overrides
         thinkdeep_field_overrides = {

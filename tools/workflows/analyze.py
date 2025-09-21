@@ -28,7 +28,7 @@ from config import TEMPERATURE_ANALYTICAL
 from systemprompts import ANALYZE_PROMPT
 from tools.shared.base_models import WorkflowRequest
 
-from .workflow.base import WorkflowTool
+from ..workflow.base import WorkflowTool
 
 # Progress helper
 from utils.progress import send_progress
@@ -269,7 +269,7 @@ class AnalyzeTool(WorkflowTool):
 
     def get_input_schema(self) -> dict[str, Any]:
         """Generate input schema using WorkflowSchemaBuilder with analyze-specific overrides."""
-        from .workflow.schema_builders import WorkflowSchemaBuilder
+        from ..workflow.schema_builders import WorkflowSchemaBuilder
 
         # Fields to exclude from analyze workflow (inherited from WorkflowRequest but not used)
         excluded_fields = {"hypothesis", "confidence"}

@@ -27,7 +27,7 @@ from config import TEMPERATURE_ANALYTICAL
 from systemprompts import PRECOMMIT_PROMPT
 from tools.shared.base_models import WorkflowRequest
 
-from .workflow.base import WorkflowTool
+from ..workflow.base import WorkflowTool
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +242,7 @@ class PrecommitTool(WorkflowTool):
 
     def get_input_schema(self) -> dict[str, Any]:
         """Generate input schema using WorkflowSchemaBuilder with precommit-specific overrides."""
-        from .workflow.schema_builders import WorkflowSchemaBuilder
+        from ..workflow.schema_builders import WorkflowSchemaBuilder
 
         # Precommit workflow-specific field overrides
         precommit_field_overrides = {

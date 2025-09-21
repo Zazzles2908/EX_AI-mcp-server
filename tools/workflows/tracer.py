@@ -31,7 +31,7 @@ from config import TEMPERATURE_ANALYTICAL
 from systemprompts import TRACER_PROMPT
 from tools.shared.base_models import WorkflowRequest
 
-from .workflow.base import WorkflowTool
+from ..workflow.base import WorkflowTool
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +259,7 @@ class TracerTool(WorkflowTool):
 
     def get_input_schema(self) -> dict[str, Any]:
         """Generate input schema using WorkflowSchemaBuilder with field exclusion."""
-        from .workflow.schema_builders import WorkflowSchemaBuilder
+        from ..workflow.schema_builders import WorkflowSchemaBuilder
 
         # Exclude investigation-specific fields that tracing doesn't need
         excluded_workflow_fields = [

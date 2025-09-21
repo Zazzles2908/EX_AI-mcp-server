@@ -469,6 +469,14 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                     "request_id": req_id,
                     "outputs": outputs_norm,
                 }
+                # Optional compatibility: include a top-level 'text' field concatenating output texts
+                try:
+                    if os.getenv("EXAI_WS_COMPAT_TEXT", "false").strip().lower() == "true":
+                        texts = [o.get("text", "") for o in outputs_norm if isinstance(o, dict)]
+                        result_payload["text"] = "\n\n".join([t for t in texts if t])
+                except Exception:
+                    pass
+
                 await _safe_send(ws, result_payload)
                 _store_result(req_id, result_payload)
                 # Store by semantic call key to allow delivery across reconnects with new req_id
