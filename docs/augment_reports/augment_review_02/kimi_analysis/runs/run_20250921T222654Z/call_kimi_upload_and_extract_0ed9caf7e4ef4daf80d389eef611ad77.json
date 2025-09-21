@@ -1,0 +1,11 @@
+{
+  "op": "call_tool",
+  "request_id": "0ed9caf7e4ef4daf80d389eef611ad77",
+  "name": "kimi_upload_and_extract",
+  "arguments": {
+    "files": [
+      "C:\\Project\\EX-AI-MCP-Server\\.validation_tmp\\sample_a.txt"
+    ],
+    "purpose": "file-extract"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "op": "call_tool_res",
+  "request_id": "a1036cf8f4ba4f4884336db6a7bb7d9a",
+  "outputs": [
+    {
+      "type": "text",
+      "text": "[{\"role\": \"system\", \"content\": \"{\\\"content\\\":\\\"This is sample file A for Kimi file upload and extraction.\\\\r\\\\n\\\",\\\"file_type\\\":\\\"text/plain\\\",\\\"filename\\\":\\\"sample_a.txt\\\",\\\"title\\\":\\\"\\\",\\\"type\\\":\\\"file\\\"}\", \"_file_id\": \"d37vrr21ol7h6f1kc7b0\"}]"
+    }
+  ]
+}

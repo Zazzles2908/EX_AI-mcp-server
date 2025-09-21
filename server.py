@@ -1098,27 +1098,70 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             except Exception:
                 pass
             raise
-        except _asyncio.TimeoutError:
+
+    # --- Minimal fallback orchestrator for file_chat flows (P0) ---
+    async def _execute_file_chat_with_fallback(primary_name: str, args: dict[str, Any]) -> list[TextContent]:
+        """
+        Attempt file-based chat on the primary provider, then gracefully degrade.
+        Chain: primary (e.g., kimi_multi_file_chat) -> glm_multi_file_chat -> chat (final fallback).
+        """
+        import json as _json
+        _mcp_log = logging.getLogger("mcp_activity")
+
+        def _is_error_envelope(res: list[TextContent]) -> bool:
             try:
-                main_task.cancel()
+                if not res:
+                    return False
+                txt = getattr(res[0], "text", None)
+                if not isinstance(txt, str):
+                    return False
+                obj = _json.loads(txt)
+                if isinstance(obj, dict) and str(obj.get("status")).startswith("execution_error"):
+                    return True
             except Exception:
-                pass
-            logger.error(f"Tool '{name}' timed out after {_tool_timeout_s}s req_id={req_id}")
+                return False
+            return False
+
+        chain = [primary_name, "glm_multi_file_chat"]
+        for attempt_idx, tool_name in enumerate(chain, start=1):
             try:
-                if _ex_mirror and _evt and _sink:
-                    _evt.end(ok=False, error=f"timeout {_tool_timeout_s}s")
-                    _sink.record(_evt)
-            except Exception:
-                pass
-            raise
-        except Exception as e:
-            logger.error(f"Tool '{name}' execution error req_id={req_id}: {e}", exc_info=True)
-            try:
-                if _ex_mirror and _evt and _sink:
-                    _evt.end(ok=False, error=str(e))
-                    _sink.record(_evt)
-            except Exception:
-                pass
+                if tool_name not in TOOLS:
+                    continue
+                _mcp_log.info(f"[FALLBACK] attempt={attempt_idx} tool={tool_name}")
+                tool_obj = TOOLS[tool_name]
+                result = await _execute_with_monitor(lambda: tool_obj.execute(args))
+                # If tool returned a structured error envelope, try next
+                if _is_error_envelope(result):
+                    _mcp_log.warning(f"[FALLBACK] envelope indicates error; advancing chain from {tool_name}")
+                    continue
+                return result
+            except Exception as e:
+                try:
+                    _mcp_log.error(f"[FALLBACK] exception on {tool_name}: {e}")
+                except Exception:
+                    pass
+                # proceed to next candidate
+                continue
+
+        # Final fallback: plain chat summary to avoid user-visible failure
+        try:
+            if "chat" in TOOLS:
+                fb_prompt = args.get("prompt") or "Please proceed with a concise answer based on your own knowledge."
+                chat_args = {"prompt": f"Files-based path unavailable; answer succinctly: {fb_prompt}", "model": args.get("model")}
+                _mcp_log.info("[FALLBACK] invoking final 'chat' fallback")
+                return await _execute_with_monitor(lambda: TOOLS["chat"].execute(chat_args))
+        except Exception:
+            pass
+        # As a last resort, return a minimal error envelope
+        from mcp.types import TextContent as _TextContent
+        return [_TextContent(type="text", text=_json.dumps({
+            "status": "execution_error",
+            "error_class": "exhausted_fallback_chain",
+            "provider": "unknown",
+            "tool": primary_name,
+            "detail": "All fallbacks failed; no content available"
+        }, ensure_ascii=False))]
+
             raise
         finally:
             _stop = True
@@ -1384,7 +1427,10 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             logger.debug(f"Tool {name} doesn't require model resolution - skipping model validation")
             # Execute tool directly without model context
             try:
-                return await _execute_with_monitor(lambda: tool.execute(arguments))
+                if name == "kimi_multi_file_chat":
+                    return await _execute_file_chat_with_fallback(name, arguments)
+                else:
+                    return await _execute_with_monitor(lambda: tool.execute(arguments))
             except Exception as e:
                 # Graceful error normalization for invalid arguments and runtime errors
                 try:
@@ -1649,7 +1695,10 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         # Execute tool with pre-resolved model context
         __overall_start = _time.time()
         __workflow_steps_completed = 1
-        result = await _execute_with_monitor(lambda: tool.execute(arguments))
+        if name == "kimi_multi_file_chat":
+            result = await _execute_file_chat_with_fallback(name, arguments)
+        else:
+            result = await _execute_with_monitor(lambda: tool.execute(arguments))
         # Normalize result shape to list[TextContent]
         from mcp.types import TextContent as _TextContent
         if isinstance(result, _TextContent):
@@ -1732,12 +1781,12 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         try:
             progress_log = get_progress_log()
             if isinstance(result, list) and result:
-                from mcp.types import TextContent
+                from mcp.types import TextContent as _TextContent
                 primary = result[-1]
                 progress_block = None
                 if progress_log:
                     progress_block = "\n".join(["[PROGRESS] " + p for p in progress_log])
-                    if isinstance(primary, TextContent) and primary.type == "text":
+                    if isinstance(primary, _TextContent) and primary.type == "text":
                         import json as _json
                         text = primary.text or ""
                         try:

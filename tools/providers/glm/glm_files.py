@@ -6,7 +6,9 @@ from pathlib import Path
 
 
 
-from .shared.base_tool import BaseTool
+import json
+from tools.shared.base_tool import BaseTool
+from tools.shared.base_models import ToolRequest
 from src.providers.glm import GLMModelProvider
 
 from src.providers.registry import ModelProviderRegistry
@@ -17,6 +19,30 @@ class GLMUploadFileTool(BaseTool):
     description = (
         "Upload a file to ZhipuAI GLM Files API (purpose=agent by default) and return its file id."
     )
+
+    # BaseTool required interface
+    def get_name(self) -> str:
+        return self.name
+
+    def get_description(self) -> str:
+        return self.description
+
+    def get_input_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "file": {"type": "string", "description": "Path to file (abs or relative)"},
+                "purpose": {"type": "string", "enum": ["agent"], "default": "agent"},
+            },
+            "required": ["file"],
+        }
+
+    def get_request_model(self):
+        return ToolRequest
+
+    def prepare_prompt(self, request: ToolRequest) -> str:
+        # No unified prompt; this tool performs provider upload directly
+        return ""
 
     def get_system_prompt(self) -> str:
         return (
@@ -32,14 +58,7 @@ class GLMUploadFileTool(BaseTool):
         return {
             "name": self.name,
             "description": self.description,
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "file": {"type": "string", "description": "Path to file (abs or relative)"},
-                    "purpose": {"type": "string", "enum": ["agent"], "default": "agent"},
-                },
-                "required": ["file"],
-            },
+            "input_schema": self.get_input_schema(),
         }
 
     def run(self, **kwargs) -> Dict[str, Any]:
@@ -113,6 +132,12 @@ class GLMUploadFileTool(BaseTool):
             except Exception:
                 pass
             raise
+
+    async def execute(self, arguments: dict[str, Any]) -> list["TextContent"]:
+        import asyncio as _aio
+        from mcp.types import TextContent
+        result = await _aio.to_thread(self.run, **arguments)
+        return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
 
 class GLMMultiFileChatTool(BaseTool):
     name = "glm_multi_file_chat"

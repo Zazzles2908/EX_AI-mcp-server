@@ -82,16 +82,16 @@ TOOL_VISIBILITY = {
     "debug": "core",
     "autopilot": "core",
     # Auxiliary (advanced)
-    "provider_capabilities": "advanced",
-    "listmodels": "advanced",
+    "provider_capabilities": "hidden",  # AI-manager-only diagnostics
+    "listmodels": "hidden",              # AI-manager-only diagnostics
     "activity": "advanced",
-    "version": "advanced",
+    "version": "hidden",                 # AI-manager-only diagnostics
     "kimi_chat_with_tools": "advanced",
-    "kimi_upload_and_extract": "advanced",
+    "kimi_upload_and_extract": "hidden", # backend pathway only
     "glm_agent_chat": "advanced",
     "glm_agent_get_result": "advanced",
     "glm_agent_conversation": "advanced",
-    "glm_upload_file": "advanced",
+    "glm_upload_file": "hidden",         # backend pathway only
     "glm_multi_file_chat": "advanced",
     "consensus": "advanced",
     "docgen": "advanced",

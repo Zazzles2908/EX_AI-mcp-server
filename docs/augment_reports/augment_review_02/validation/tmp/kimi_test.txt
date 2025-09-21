@@ -1,0 +1,3 @@
+Kimi validation sample file.
+Contains a couple of lines to test upload and extraction via EXAI-WS MCP provider tool.
+

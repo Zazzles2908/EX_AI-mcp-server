@@ -1,0 +1,15 @@
+{
+  "attempted": 11,
+  "ok": 10,
+  "failed": 1,
+  "duration_sec": 59.71,
+  "run_dir": "C:\\Project\\EX-AI-MCP-Server\\docs\\augment_reports\\augment_review_02\\validation\\runs\\run_20250921T134957Z",
+  "cli": {
+    "embeddings": null,
+    "cleanup": {
+      "rc": 0,
+      "stdout_len": 28,
+      "stderr_len": 0
+    }
+  }
+}

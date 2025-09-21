@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "C:\Project\EX-AI-MCP-Server\tools\providers\kimi\kimi_files_cleanup.py", line 50, in <module>
+    from src.providers.registry import ModelProviderRegistry  # type: ignore
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'src'

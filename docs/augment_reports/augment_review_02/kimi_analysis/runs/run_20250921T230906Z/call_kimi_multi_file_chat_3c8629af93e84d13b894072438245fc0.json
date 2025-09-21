@@ -1,0 +1,14 @@
+{
+  "op": "call_tool",
+  "request_id": "3c8629af93e84d13b894072438245fc0",
+  "name": "kimi_multi_file_chat",
+  "arguments": {
+    "files": [
+      "C:\\Project\\EX-AI-MCP-Server\\.validation_tmp\\sample_a.txt",
+      "C:\\Project\\EX-AI-MCP-Server\\.validation_tmp\\sample_b.txt"
+    ],
+    "prompt": "Explain one surprising performance pitfall likely in this codebase.",
+    "model": "kimi-k2-0711-preview",
+    "temperature": 0.4
+  }
+}

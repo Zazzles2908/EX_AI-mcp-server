@@ -1,0 +1,15 @@
+{
+  "op": "call_tool_res",
+  "request_id": "9deb31b0cb1a4ceb9666a18db0b1108f",
+  "outputs": [
+    {
+      "type": "text",
+      "text": "{\"file_id\": \"1758462654948-a6fb0575c9cb42e4b6be5de2260749dc.txt\", \"filename\": \"sample_a.txt\"}"
+    },
+    {
+      "type": "text",
+      "text": "=== MCP CALL SUMMARY ===\nTool: glm_upload_file | Status: COMPLETE (Step 1/? complete)\nDuration: 0.4s | Model: glm-4.5-flash | Tokens: ~23\nContinuation ID: -\nNext Action Required: None\nExpert Validation: Disabled\n=== END SUMMARY ===\n\n(no progress captured)\nreq_id=01e86bd3-2218-48ad-be4b-6ff6b8c51d3f\n\n<details><summary>Tool activity (req_id=01e86bd3-2218-48ad-be4b-6ff6b8c51d3f)</summary>\n\n(no progress captured)\n</details>"
+    }
+  ],
+  "text": "{\"file_id\": \"1758462654948-a6fb0575c9cb42e4b6be5de2260749dc.txt\", \"filename\": \"sample_a.txt\"}\n\n=== MCP CALL SUMMARY ===\nTool: glm_upload_file | Status: COMPLETE (Step 1/? complete)\nDuration: 0.4s | Model: glm-4.5-flash | Tokens: ~23\nContinuation ID: -\nNext Action Required: None\nExpert Validation: Disabled\n=== END SUMMARY ===\n\n(no progress captured)\nreq_id=01e86bd3-2218-48ad-be4b-6ff6b8c51d3f\n\n<details><summary>Tool activity (req_id=01e86bd3-2218-48ad-be4b-6ff6b8c51d3f)</summary>\n\n(no progress captured)\n</details>"
+}

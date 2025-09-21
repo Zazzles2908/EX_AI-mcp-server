@@ -1,0 +1,14 @@
+{
+  "op": "call_tool",
+  "request_id": "5de5c9cd18cf40c69e9c7b06b872c26a",
+  "name": "analyze",
+  "arguments": {
+    "step": "Collect route diagnostics snapshot",
+    "step_number": 1,
+    "total_steps": 1,
+    "next_step_required": false,
+    "findings": "Running backend MCP — snapshot",
+    "output_format": "summary",
+    "model": "kimi-k2-0711-preview"
+  }
+}

@@ -169,6 +169,37 @@ def _get_cached_by_key(call_key: str) -> list[dict] | None:
     return rec.get("outputs")
 
 
+# Tool name normalization to tolerate IDE-side aliasing (e.g., chat_EXAI-WS -> chat)
+def _normalize_tool_name(name: str) -> str:
+    try:
+        aliases = {
+            "chat_EXAI-WS": "chat",
+            "analyze_EXAI-WS": "analyze",
+            "thinkdeep_EXAI-WS": "thinkdeep",
+            "planner_EXAI-WS": "planner",
+            "codereview_EXAI-WS": "codereview",
+            "debug_EXAI-WS": "debug",
+            "refactor_EXAI-WS": "refactor",
+            "precommit_EXAI-WS": "precommit",
+            "secaudit_EXAI-WS": "secaudit",
+            "testgen_EXAI-WS": "testgen",
+            "tracer_EXAI-WS": "tracer",
+            "consensus_EXAI-WS": "consensus",
+            "docgen_EXAI-WS": "docgen",
+            # Provider demos
+            "kimi_chat_with_tools_EXAI-WS": "kimi_chat_with_tools",
+        }
+        if name in aliases:
+            return aliases[name]
+        # Generic suffix-stripping for common variants
+        for suf in ("_EXAI-WS", "-EXAI-WS", "_EXAI_WS", "-EXAI_WS"):
+            if name.endswith(suf):
+                return name[: -len(suf)]
+    except Exception:
+        pass
+    return name
+
+
 
 def _normalize_outputs(outputs: List[Any]) -> List[Dict[str, Any]]:
     norm: List[Dict[str, Any]] = []
@@ -236,7 +267,8 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
         return
 
     if op == "call_tool":
-        name = msg.get("name")
+        orig_name = msg.get("name")
+        name = _normalize_tool_name(orig_name)
         arguments = msg.get("arguments") or {}
         req_id = msg.get("request_id")
         try:
@@ -248,7 +280,7 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
             await _safe_send(ws, {
                 "op": "call_tool_res",
                 "request_id": req_id,
-                "error": {"code": "TOOL_NOT_FOUND", "message": f"Unknown tool: {name}"}
+                "error": {"code": "TOOL_NOT_FOUND", "message": f"Unknown tool: {orig_name}"}
             })
             return
 
@@ -464,6 +496,20 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 except Exception:
                     pass
                 outputs_norm = _normalize_outputs(outputs)
+                # Payload delivery guard: ensure a first non-empty block if enabled
+                try:
+                    if (not outputs_norm) and os.getenv("EX_ENSURE_NONEMPTY_FIRST", "false").strip().lower() == "true":
+                        diag = {
+                            "status": "no_payload_from_tool",
+                            "diagnostic_stub": True,
+                            "tool": name,
+                            "session": session_id,
+                            "ts": time.time(),
+                        }
+                        outputs_norm = [{"type": "text", "text": json.dumps(diag, separators=(",", ":"))}]
+                except Exception:
+                    pass
+
                 result_payload = {
                     "op": "call_tool_res",
                     "request_id": req_id,

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from mcp.types import TextContent
 
-from .shared.base_tool import BaseTool
+from tools.shared.base_tool import BaseTool
 from tools.shared.base_models import ToolRequest
 from src.providers.kimi import KimiModelProvider
 from src.providers.registry import ModelProviderRegistry
@@ -184,6 +184,32 @@ class KimiMultiFileChatTool(BaseTool):
         "Upload multiple files to Kimi, extract content, prepend as system messages, then call chat/completions."
     )
 
+    # BaseTool required interface
+    def get_name(self) -> str:
+        return self.name
+
+    def get_description(self) -> str:
+        return self.description
+
+    def get_input_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "files": {"type": "array", "items": {"type": "string"}},
+                "prompt": {"type": "string"},
+                "model": {"type": "string", "default": os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")},
+                "temperature": {"type": "number", "default": 0.3},
+            },
+            "required": ["files", "prompt"],
+        }
+
+    def get_request_model(self):
+        return ToolRequest
+
+    def prepare_prompt(self, request: ToolRequest) -> str:
+        # This tool performs provider calls directly; no unified prompt needed
+        return ""
+
     def get_system_prompt(self) -> str:
         return (
             "You orchestrate Kimi multi-file chat.\n"
@@ -203,16 +229,7 @@ class KimiMultiFileChatTool(BaseTool):
         return {
             "name": self.name,
             "description": self.description,
-            "input_schema": {
-                "type": "object",
-                "properties": {
-                    "files": {"type": "array", "items": {"type": "string"}},
-                    "prompt": {"type": "string"},
-                    "model": {"type": "string", "default": os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")},
-                    "temperature": {"type": "number", "default": 0.3},
-                },
-                "required": ["files", "prompt"],
-            },
+            "input_schema": self.get_input_schema(),
         }
 
     def run(self, **kwargs) -> Dict[str, Any]:
@@ -224,9 +241,9 @@ class KimiMultiFileChatTool(BaseTool):
         if not files or not prompt:
             raise ValueError("files and prompt are required")
 
-        # Upload & extract
+        # Upload & extract (call provider tool's internal synchronous _run)
         upload_tool = KimiUploadAndExtractTool()
-        sys_msgs = upload_tool.run(files=files)
+        sys_msgs = upload_tool._run(files=files)
 
         # Prepare messages
         messages = [*sys_msgs, {"role": "user", "content": prompt}]
@@ -238,7 +255,32 @@ class KimiMultiFileChatTool(BaseTool):
                 raise RuntimeError("KIMI_API_KEY is not configured")
             prov = KimiModelProvider(api_key=api_key)
 
-        # Use OpenAI-compatible client to create completion
-        resp = prov.client.chat.completions.create(model=model, messages=messages, temperature=temperature)
+        # Use OpenAI-compatible client to create completion with a hard timeout
+        import concurrent.futures as _fut
+        def _call():
+            return prov.client.chat.completions.create(model=model, messages=messages, temperature=temperature)
+        timeout_s = float(os.getenv("KIMI_MF_CHAT_TIMEOUT_SECS", "180"))
+        try:
+            with _fut.ThreadPoolExecutor(max_workers=1) as _pool:
+                _future = _pool.submit(_call)
+                resp = _future.result(timeout=timeout_s)
+        except _fut.TimeoutError:
+            raise TimeoutError(f"Kimi multi-file chat timed out after {int(timeout_s)}s")
         content = resp.choices[0].message.content
         return {"model": model, "content": content}
+
+    async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
+        import asyncio as _aio
+        try:
+            result = await _aio.to_thread(self.run, **arguments)
+            return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
+        except Exception as e:
+            # Emit a structured error envelope so the dispatcher can fallback
+            err = {
+                "status": "execution_error",
+                "error_class": type(e).__name__.lower(),
+                "provider": "KIMI",
+                "tool": self.get_name(),
+                "detail": str(e),
+            }
+            return [TextContent(type="text", text=json.dumps(err, ensure_ascii=False))]

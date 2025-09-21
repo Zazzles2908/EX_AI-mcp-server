@@ -37,13 +37,19 @@ from typing import Any, Dict, List, Optional
 try:
     from pathlib import Path
     from dotenv import load_dotenv  # type: ignore
-    _root = Path(__file__).resolve().parents[1]
+    # Walk up to find the repo root containing .env
+    _here = Path(__file__).resolve()
+    _root = _here
+    for _ in range(6):
+        if (_root / ".env").exists():
+            break
+        _root = _root.parent
     load_dotenv(dotenv_path=str(_root / ".env"))
 except Exception:
     pass
 
-# Ensure project root on path for local runs
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Ensure project root on path for local runs (root that contains .env or its parent)
+PROJECT_ROOT = str(_root)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 

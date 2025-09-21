@@ -35,7 +35,7 @@ COMMON_FIELD_DESCRIPTIONS = {
     ),
     "use_websearch": (
         "Enable web search for documentation, best practices, and current information. "
-        "When enabled, the model can request Claude to perform web searches and share results back "
+        "When enabled, the manager/server can perform provider-native web searches and share results back "
         "during conversations. Particularly useful for: brainstorming sessions, architectural design "
         "discussions, exploring industry best practices, working with specific frameworks/technologies, "
         "researching solutions to complex problems, or when current documentation and community insights "
@@ -77,7 +77,7 @@ WORKFLOW_FIELD_DESCRIPTIONS = {
     "backtrack_from_step": "Step number to backtrack from if work needs revision",
     "use_assistant_model": (
         "Whether to use assistant model for expert analysis after completing the workflow steps. "
-        "Set to False to skip expert analysis and rely solely on Claude's investigation. "
+        "Set to False to skip expert analysis and rely solely on the tool's own investigation. "
         "Defaults to True for comprehensive validation."
     ),
 }

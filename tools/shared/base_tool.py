@@ -118,7 +118,7 @@ class BaseTool(ABC):
         """
         Return a detailed description of what this tool does.
 
-        This description is shown to MCP clients (like Claude) to help them
+        This description is shown to MCP clients to help them
         understand when and how to use the tool. It should be comprehensive
         and include trigger phrases.
 
@@ -699,7 +699,7 @@ class BaseTool(ABC):
 
         If EX_ALLOW_RELATIVE_PATHS=true, resolve relative paths against the project root
         (current working directory) and ensure they do not escape that root. This preserves
-        security while improving UX for clients like Claude.
+        security while improving UX for MCP clients.
 
         Args:
             request: The validated request object
@@ -1018,7 +1018,7 @@ class BaseTool(ABC):
         Check if USER INPUT text is too large for MCP transport boundary.
 
         IMPORTANT: This method should ONLY be used to validate user input that crosses
-        the Claude CLI ↔ MCP Server transport boundary. It should NOT be used to limit
+        the client ↔ MCP Server transport boundary. It should NOT be used to limit
         internal MCP Server operations.
 
         Args:
