@@ -1,0 +1,7 @@
+{
+  "op": "call_tool_ack",
+  "request_id": "c44e597eb6444e5296ec136c11fb56b9",
+  "accepted": true,
+  "timeout": 90,
+  "name": "thinkdeep"
+}

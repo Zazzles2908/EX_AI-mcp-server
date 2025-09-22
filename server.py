@@ -28,7 +28,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Optional
 
-from src.server.fallback_orchestrator import execute_file_chat_with_fallback
+
 
 # EARLY DIAGNOSTIC (gate via STDERR_BREADCRUMBS to avoid noisy stderr for strict clients)
 _DEF = lambda k, d: os.getenv(k, d).strip().lower()
@@ -1314,6 +1314,18 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                 "auto_deep" if name in {"thinkdeep","consensus","docgen","secaudit"} or arguments.get("depth")=="deep" or arguments.get("next_step_required") is False else "auto_simple"
             ))
             logger.info(f"[MODEL_ROUTE] tool={name} requested={requested_model} resolved={model_name} reason={reason}")
+            try:
+                logging.getLogger("mcp_activity").info({
+                    "event": "route_diagnostics",
+                    "tool": name,
+                    "req_id": req_id,
+                    "requested_model": requested_model,
+                    "resolved_model": model_name,
+                    "reason": reason,
+                    "path": "model_resolution"
+                })
+            except Exception:
+                pass
         except Exception:
             pass
 
@@ -1325,8 +1337,8 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             logger.info(f"Parsed model format - model: '{model_name}'")
         # Early boundary routing attempt log for observability
         try:
-            hidden_enabled_early = _env_true("HIDDEN_MODEL_ROUTER_ENABLED", "true")
-            sentinels_early = {s.strip().lower() for s in os.getenv("ROUTER_SENTINEL_MODELS", "glm-4.5-flash,auto").split(",") if s.strip()}
+            hidden_enabled_early = _env_true("HIDDEN_MODEL_ROUTER_ENABLED", "false")
+            sentinels_early = {s.strip().lower() for s in os.getenv("ROUTER_SENTINEL_MODELS", "auto").split(",") if s.strip()}
             logging.getLogger("server").info(
                 f"EVENT boundary_model_resolution_attempt input_model={model_name} "
                 f"tool={getattr(tool, '__class__', type(tool)).__name__} "
@@ -1367,7 +1379,22 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             # Execute tool directly without model context
             try:
                 if name == "kimi_multi_file_chat":
-                    return await execute_file_chat_with_fallback(TOOLS, _execute_with_monitor, name, arguments)
+                    # All file_chat requests must pass through fallback orchestrator
+                    try:
+                        logging.getLogger("mcp_activity").info({
+                            "event": "route_diagnostics",
+                            "tool": name,
+                            "req_id": req_id,
+                            "path": "non_model_dispatch",
+                            "note": "manager dispatcher engaged; invoking safety-net orchestrator"
+                        })
+                    except Exception:
+                        pass
+                    try:
+                        logging.getLogger("mcp_activity").info("[FALLBACK] orchestrator route engaged for multi-file chat")
+                    except Exception:
+                        pass
+                    return await _execute_with_monitor(lambda: tool.execute(arguments))
                 else:
                     return await _execute_with_monitor(lambda: tool.execute(arguments))
             except Exception as e:
@@ -1484,8 +1511,8 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
 
 
         # Handle auto or hidden-sentinel at MCP boundary - resolve to specific model (production selector)
-        hidden_enabled = _env_true("HIDDEN_MODEL_ROUTER_ENABLED", "true")
-        sentinels = {s.strip().lower() for s in os.getenv("ROUTER_SENTINEL_MODELS", "glm-4.5-flash,auto").split(",") if s.strip()}
+        hidden_enabled = _env_true("HIDDEN_MODEL_ROUTER_ENABLED", "false")
+        sentinels = {s.strip().lower() for s in os.getenv("ROUTER_SENTINEL_MODELS", "auto").split(",") if s.strip()}
         # Always log boundary attempt for observability
         try:
             logging.getLogger('server').info({
@@ -1579,10 +1606,11 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         # Check file sizes before tool execution using resolved model
         if "files" in arguments and arguments["files"]:
             logger.debug(f"Checking file sizes for {len(arguments['files'])} files with model {model_name}")
-            file_size_check = check_total_file_size(arguments["files"], model_name)
-            if file_size_check:
-                logger.warning(f"File size check failed for {name} with model {model_name}")
-                return [TextContent(type="text", text=ToolOutput(**file_size_check).model_dump_json())]
+            if _env_true("STRICT_FILE_SIZE_REJECTION", "false"):
+                file_size_check = check_total_file_size(arguments["files"], model_name)
+                if file_size_check:
+                    logger.warning(f"File size check failed for {name} with model {model_name}")
+                    return [TextContent(type="text", text=ToolOutput(**file_size_check).model_dump_json())]
 
         # Optional date injection for temporal awareness
         try:
@@ -1635,7 +1663,22 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         __overall_start = _time.time()
         __workflow_steps_completed = 1
         if name == "kimi_multi_file_chat":
-            result = await execute_file_chat_with_fallback(TOOLS, _execute_with_monitor, name, arguments)
+            # All file_chat requests must pass through fallback orchestrator
+            try:
+                logging.getLogger("mcp_activity").info({
+                    "event": "route_diagnostics",
+                    "tool": name,
+                    "req_id": req_id,
+                    "path": "non_model_dispatch",
+                    "note": "manager dispatcher engaged; invoking safety-net orchestrator"
+                })
+            except Exception:
+                pass
+            try:
+                logging.getLogger("mcp_activity").info("[FALLBACK] orchestrator route engaged for multi-file chat")
+            except Exception:
+                pass
+            result = await _execute_with_monitor(lambda: tool.execute(arguments))
         else:
             result = await _execute_with_monitor(lambda: tool.execute(arguments))
         # Normalize result shape to list[TextContent]

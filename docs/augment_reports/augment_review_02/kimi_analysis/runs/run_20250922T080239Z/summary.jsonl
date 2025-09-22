@@ -1,0 +1,13 @@
+{"type": "status", "event": "connect_attempt", "uris": ["ws://127.0.0.1:8765", "ws://127.0.0.1:8765/ws"]}
+{"type": "status", "event": "connected", "uri": "ws://127.0.0.1:8765"}
+{"type": "status", "event": "hello_ack", "ok": true}
+{"type": "status", "event": "tools_list", "count": 22}
+{"type": "status", "event": "start_tool", "tool": "kimi_upload_and_extract", "rid": "1635a3b4e69d453f8dea2dd6f35e9c07"}
+{"type": "status", "event": "progress", "rid": "1635a3b4e69d453f8dea2dd6f35e9c07", "tool": "kimi_upload_and_extract", "stage": null}
+{"type": "status", "event": "ack", "rid": "1635a3b4e69d453f8dea2dd6f35e9c07", "tool": "kimi_upload_and_extract"}
+{"tool": "kimi_upload_and_extract", "rid": "1635a3b4e69d453f8dea2dd6f35e9c07", "ok": true, "duration_sec": 1.11, "preview": "[{'type': 'text', 'text': '[{\"role\": \"system\", \"content\": \"{\\\\\"content\\\\\":\\\\\"A: backend MCP runner sample file\\\\\\\\r\\\\\\\\n\\\\\",\\\\\"file_type\\\\\":\\\\\"text/plain\\\\\",\\\\\"filename\\\\\":\\\\\"sample_a.txt\\\\\",\\\\\"title\\"}
+{"type": "status", "event": "tool_complete", "tool": "kimi_upload_and_extract", "rid": "1635a3b4e69d453f8dea2dd6f35e9c07", "duration_sec": 1.11}
+{"type": "status", "event": "start_tool", "tool": "kimi_multi_file_chat", "rid": "0b537caa5f83442782c88ed7d4039229"}
+{"type": "status", "event": "progress", "rid": "0b537caa5f83442782c88ed7d4039229", "tool": "kimi_multi_file_chat", "stage": null}
+{"type": "status", "event": "ack", "rid": "0b537caa5f83442782c88ed7d4039229", "tool": "kimi_multi_file_chat"}
+{"type": "status", "event": "progress", "rid": "0b537caa5f83442782c88ed7d4039229", "tool": "kimi_multi_file_chat", "stage": null}

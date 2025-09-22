@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 import logging, time
+import re
 
 # Real-time console logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -47,6 +48,7 @@ RUNS_DIR.mkdir(parents=True, exist_ok=True)
 TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 RUN_DIR = RUNS_DIR / f"run_{TS}"
 RUN_DIR.mkdir(parents=True, exist_ok=True)
+ACTIVITY_LOG = ROOT / "logs" / "mcp_activity.log"
 
 HOST = os.getenv("EXAI_WS_HOST", "127.0.0.1")
 PORT = int(os.getenv("EXAI_WS_PORT", "8765"))
@@ -55,6 +57,46 @@ TOKEN = os.getenv("EXAI_WS_TOKEN", "")
 KIMI_MODEL = os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
 GLM_FLASH = os.getenv("GLM_FLASH_MODEL", "glm-4.5-flash")
 GLM_QUALITY = os.getenv("GLM_QUALITY_MODEL", "glm-4.5")
+
+def _write_text(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8")
+
+
+def _env_snapshot() -> Dict[str, Any]:
+    keys = [
+        "KIMI_MF_CHAT_TIMEOUT_SECS",
+        "FALLBACK_ATTEMPT_TIMEOUT_SECS",
+        "EXAI_WS_CALL_TIMEOUT",
+        "EXAI_WS_CALL_TIMEOUT_MAX",
+        "KIMI_CHAT_TOOL_TIMEOUT_SECS",
+        "KIMI_CHAT_TOOL_TIMEOUT_WEB_SECS",
+    ]
+    snap = {k: os.getenv(k) for k in keys}
+    # Validate precedence when all present
+    try:
+        k = int(snap.get("KIMI_MF_CHAT_TIMEOUT_SECS") or 0)
+        f = int(snap.get("FALLBACK_ATTEMPT_TIMEOUT_SECS") or 0)
+        w = int(snap.get("EXAI_WS_CALL_TIMEOUT") or 0)
+        snap["precedence_ok"] = (k <= f <= w) if (k and f and w) else None
+    except Exception:
+        snap["precedence_ok"] = None
+    return snap
+
+
+def _copy_activity_tail() -> None:
+    """Copy recent activity lines and extract route diagnostics if present."""
+    try:
+        if not ACTIVITY_LOG.exists():
+            return
+        raw = ACTIVITY_LOG.read_text(encoding="utf-8", errors="ignore").splitlines()
+        tail = raw[-400:]
+        _write_text(RUN_DIR / "mcp_activity_tail.log", "\n".join(tail))
+        # Extract potential route diagnostics / manager path evidence
+        pat = re.compile(r"route_diagnostics|TOOL_CALL|PROGRESS|WATCHDOG|CONVERSATION_RESUME", re.IGNORECASE)
+        extracted = [ln for ln in tail if pat.search(ln)]
+        _write_text(RUN_DIR / "route_diagnostics_extract.log", "\n".join(extracted))
+    except Exception as e:
+        _write_text(RUN_DIR / "activity_tail_error.txt", str(e))
 
 SUMMARY_MD = RUN_DIR / "summary.md"
 SUMMARY_JSONL = RUN_DIR / "summary.jsonl"
@@ -220,6 +262,19 @@ async def run_once() -> None:
                 "temperature": 0.4
             }, label="kimi_multi_file_chat")
             failed = (res.get("error") is not None) or (isinstance(res.get("outputs"), dict) and res.get("outputs", {}).get("status") == "cancelled")
+            if failed:
+                # Reconnect to avoid per-connection blocking while server-side task finishes
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+                _log_status("reconnect_after_kimi_failure", {"uri": connected_uri})
+                ws = await _ws_connect(connected_uri)
+                await ws.send(json.dumps({"op": "hello", "session_id": f"kimi-backend-{TS}-re", "token": TOKEN}))
+                _ = json.loads(await ws.recv())
+                await ws.send(json.dumps({"op": "list_tools"}))
+                _ = json.loads(await ws.recv())
+
             if failed and _has("glm_multi_file_chat"):
                 _log_status("fallback_triggered", {"from": "kimi_multi_file_chat", "to": "glm_multi_file_chat"})
                 (RUN_DIR / "fallback_mode.txt").write_text("Triggered due to kimi timeout/error", encoding="utf-8")
@@ -238,6 +293,20 @@ async def run_once() -> None:
                 "use_websearch": True
             })
 
+        # Stage 2b: ThinkDeep unpredictable prompt (manager-first path)
+        if _has("thinkdeep"):
+            await _call(ws, "thinkdeep", {
+                "step": _rand_prompt(),
+                "step_number": 1,
+                "total_steps": 1,
+                "next_step_required": False,
+                "findings": "Kickoff via backend runner",
+                "use_websearch": True,
+                "analysis_type": "general",
+                "output_format": "summary",
+                "model": "auto"
+            }, label="thinkdeep")
+
         # Stage 3: Minimal analyze step to capture route diagnostics
         if _has("analyze"):
             await _call(ws, "analyze", {
@@ -250,11 +319,16 @@ async def run_once() -> None:
                 "model": KIMI_MODEL
             })
 
+        # Snapshot env timeouts and copy activity tail
+        _w(RUN_DIR / "timeout_config.json", _env_snapshot())
+        _copy_activity_tail()
+
         # Write a tiny markdown roll-up
         md = [
             f"# Backend MCP Run — {TS}",
             "", "Artifacts:",
-            f"- hello_ack.json", f"- tools_list.json", f"- summary.jsonl",
+            "- hello_ack.json", "- tools_list.json", "- summary.jsonl",
+            "- timeout_config.json", "- mcp_activity_tail.log", "- route_diagnostics_extract.log",
         ]
         SUMMARY_MD.write_text("\n".join(md), encoding="utf-8")
 

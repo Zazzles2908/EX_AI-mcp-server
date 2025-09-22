@@ -1,3 +1,17 @@
+# Back-compat shim: forwards to canonical subfolder
+if __name__ == "__main__":
+    import pathlib, runpy, sys
+    target = pathlib.Path(__file__).parent / "ws" / "ws_chat_analyze_files.py"
+    try:
+        runpy.run_path(str(target), run_name="__main__")
+    except SystemExit as e:
+        raise
+    except Exception as e:
+        print(f"Shim failed to run target {target}: {e}")
+        sys.exit(1)
+    sys.exit(0)
+
+
 #!/usr/bin/env python
 """
 Call the EXAI-WS MCP "chat" tool for one or more markdown files using a fixed instruction prompt,

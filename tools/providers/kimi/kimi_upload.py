@@ -151,7 +151,15 @@ class KimiUploadAndExtractTool(BaseTool):
                     if last_err:
                         raise last_err
                     raise RuntimeError("Failed to fetch file content (unknown error)")
-                content = _fetch()
+                # Apply a hard cap to total fetch duration to avoid indefinite block
+                import concurrent.futures as _fut
+                fetch_timeout = float(os.getenv("KIMI_FILES_FETCH_TIMEOUT_SECS", "25"))
+                try:
+                    with _fut.ThreadPoolExecutor(max_workers=1) as _pool:
+                        _future = _pool.submit(_fetch)
+                        content = _future.result(timeout=fetch_timeout)
+                except _fut.TimeoutError:
+                    raise TimeoutError(f"Kimi files.content() timed out after {int(fetch_timeout)}s for file_id={file_id}")
                 messages.append({"role": "system", "content": content, "_file_id": file_id})
                 evt.end(ok=True)
             except Exception as e:
@@ -173,8 +181,13 @@ class KimiUploadAndExtractTool(BaseTool):
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
         # Offload blocking provider/file I/O to a background thread to avoid blocking event loop
         import asyncio as _aio
-        msgs = await _aio.to_thread(self._run, **arguments)
-        return [TextContent(type="text", text=json.dumps(msgs, ensure_ascii=False))]
+        from tools.shared.error_envelope import make_error_envelope
+        try:
+            msgs = await _aio.to_thread(self._run, **arguments)
+            return [TextContent(type="text", text=json.dumps(msgs, ensure_ascii=False))]
+        except Exception as e:
+            env = make_error_envelope("KIMI", self.get_name(), e)
+            return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
 
 
 
@@ -258,7 +271,8 @@ class KimiMultiFileChatTool(BaseTool):
         # Use OpenAI-compatible client to create completion with a hard timeout
         import concurrent.futures as _fut
         def _call():
-            return prov.client.chat.completions.create(model=model, messages=messages, temperature=temperature)
+            # Use Kimi provider wrapper to inject idempotency + context-cache headers
+            return prov.chat_completions_create(model=model, messages=messages, temperature=temperature)
         timeout_s = float(os.getenv("KIMI_MF_CHAT_TIMEOUT_SECS", "180"))
         try:
             with _fut.ThreadPoolExecutor(max_workers=1) as _pool:
@@ -266,14 +280,28 @@ class KimiMultiFileChatTool(BaseTool):
                 resp = _future.result(timeout=timeout_s)
         except _fut.TimeoutError:
             raise TimeoutError(f"Kimi multi-file chat timed out after {int(timeout_s)}s")
-        content = resp.choices[0].message.content
+        content = (resp or {}).get("content", "")
         return {"model": model, "content": content}
 
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
         import asyncio as _aio
         try:
-            result = await _aio.to_thread(self.run, **arguments)
+            # Hard-cap total execution time to ensure progress and enable fallback
+            try:
+                timeout_s = float(os.getenv("KIMI_MF_CHAT_TIMEOUT_SECS", "60"))
+            except Exception:
+                timeout_s = 60.0
+            result = await _aio.wait_for(_aio.to_thread(self.run, **arguments), timeout=timeout_s)
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
+        except _aio.TimeoutError:
+            err = {
+                "status": "execution_error",
+                "error_class": "timeouterror",
+                "provider": "KIMI",
+                "tool": self.get_name(),
+                "detail": f"kimi_multi_file_chat exceeded {int(timeout_s)}s (execute cap)",
+            }
+            return [TextContent(type="text", text=json.dumps(err, ensure_ascii=False))]
         except Exception as e:
             # Emit a structured error envelope so the dispatcher can fallback
             err = {

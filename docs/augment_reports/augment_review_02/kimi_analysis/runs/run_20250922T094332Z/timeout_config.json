@@ -1,0 +1,9 @@
+{
+  "KIMI_MF_CHAT_TIMEOUT_SECS": null,
+  "FALLBACK_ATTEMPT_TIMEOUT_SECS": null,
+  "EXAI_WS_CALL_TIMEOUT": null,
+  "EXAI_WS_CALL_TIMEOUT_MAX": null,
+  "KIMI_CHAT_TOOL_TIMEOUT_SECS": null,
+  "KIMI_CHAT_TOOL_TIMEOUT_WEB_SECS": null,
+  "precedence_ok": null
+}

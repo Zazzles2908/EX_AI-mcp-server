@@ -47,6 +47,12 @@ async def execute_file_chat_with_fallback(
                 low = txt.lower()
                 return any(k in low for k in ("execution_error", "cancelled", "timeout", "error"))
             if isinstance(obj, dict):
+                # NEW: explicit envelope visibility for diagnostics
+                try:
+                    mlog.info(f"[FALLBACK] received envelope: status={obj.get('status')} error_class={obj.get('error_class')}")
+                except Exception:
+                    pass
+
                 status = str(obj.get("status", "")).lower()
                 if status.startswith("execution_error") or status in {"cancelled", "error", "failed"}:
                     return True
@@ -78,6 +84,10 @@ async def execute_file_chat_with_fallback(
                 mlog.warning(
                     f"[FALLBACK] envelope indicates error; advancing chain from {tool_name}"
                 )
+                try:
+                    mlog.info(f"[FALLBACK] advancing chain due to envelope (tool={tool_name})")
+                except Exception:
+                    pass
                 continue
             return result
         except Exception as e:

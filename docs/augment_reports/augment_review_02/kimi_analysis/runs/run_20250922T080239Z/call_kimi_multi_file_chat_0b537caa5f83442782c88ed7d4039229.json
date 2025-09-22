@@ -1,0 +1,14 @@
+{
+  "op": "call_tool",
+  "request_id": "0b537caa5f83442782c88ed7d4039229",
+  "name": "kimi_multi_file_chat",
+  "arguments": {
+    "files": [
+      "C:\\Project\\EX-AI-MCP-Server\\.validation_tmp\\sample_a.txt",
+      "C:\\Project\\EX-AI-MCP-Server\\.validation_tmp\\sample_b.txt"
+    ],
+    "prompt": "Summarize the architecture style used here in 4 bullets.",
+    "model": "kimi-k2-0711-preview",
+    "temperature": 0.4
+  }
+}

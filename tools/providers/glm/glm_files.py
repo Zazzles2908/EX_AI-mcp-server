@@ -196,7 +196,35 @@ class GLMMultiFileChatTool(BaseTool):
                 raise RuntimeError("GLM_API_KEY is not configured")
             prov = GLMModelProvider(api_key=api_key)
 
-        # Call provider using normalized API
-        mr = prov.generate_content(prompt=prompt, model_name=model, system_prompt=sys_msg, temperature=temperature)
+        # Call provider using normalized API with a hard timeout to avoid hangs
+        import concurrent.futures as _fut
+        def _call():
+            return prov.generate_content(prompt=prompt, model_name=model, system_prompt=sys_msg, temperature=temperature)
+        timeout_s = float(os.getenv("GLM_MF_CHAT_TIMEOUT_SECS", "60"))
+        try:
+            with _fut.ThreadPoolExecutor(max_workers=1) as _pool:
+                _future = _pool.submit(_call)
+                mr = _future.result(timeout=timeout_s)
+        except _fut.TimeoutError:
+            raise TimeoutError(f"GLM multi-file chat timed out after {int(timeout_s)}s")
         return {"model": model, "content": mr.content, "uploaded": uploaded}
+
+
+    async def execute(self, arguments: dict[str, Any]) -> list["TextContent"]:
+        import asyncio as _aio
+        from mcp.types import TextContent
+        from tools.shared.error_envelope import make_error_envelope
+        try:
+            try:
+                timeout_s = float(os.getenv("GLM_MF_CHAT_TIMEOUT_SECS", "60"))
+            except Exception:
+                timeout_s = 60.0
+            result = await _aio.wait_for(_aio.to_thread(self.run, **arguments), timeout=timeout_s)
+            return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
+        except _aio.TimeoutError:
+            env = make_error_envelope("GLM", self.name, "glm_multi_file_chat exceeded execute cap", detail=f"{int(timeout_s)}s")
+            return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
+        except Exception as e:
+            env = make_error_envelope("GLM", self.name, e)
+            return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
 

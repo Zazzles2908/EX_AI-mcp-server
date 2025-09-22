@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 import asyncio
 import json
@@ -5,6 +6,7 @@ import logging
 import os
 import sys
 import uuid
+import re
 from typing import Any, Dict, List
 
 from pathlib import Path
@@ -63,6 +65,23 @@ server = Server(os.getenv("MCP_SERVER_ID", "ex-ws-shim"))
 
 _ws = None  # type: ignore
 _ws_lock = asyncio.Lock()
+
+
+def _extract_clean_content(raw_text: str) -> str:
+    """Extract clean content from EXAI MCP JSON responses or return as-is."""
+    try:
+        parsed = json.loads(raw_text)
+        if isinstance(parsed, dict) and 'content' in parsed:
+            content = parsed['content']
+            if isinstance(content, str):
+                # Remove progress sections and agent turn markers if present
+                content = re.sub(r'=== PROGRESS ===.*?=== END PROGRESS ===\n*', '', content, flags=re.DOTALL)
+                content = re.sub(r"\n*---\n*\n*AGENT'S TURN:.*", '', content, flags=re.DOTALL)
+                return content.strip()
+            return str(content)
+    except Exception:
+        pass
+    return raw_text.strip()
 
 
 async def _start_daemon_if_configured() -> None:
@@ -182,6 +201,10 @@ async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextCon
             if msg.get("op") == "call_tool_res" and msg.get("request_id") == req_id:
                 if msg.get("error"):
                     raise RuntimeError(f"Daemon error: {msg['error']}")
+                # Prefer top-level 'text' compatibility field from WS daemon when present
+                if isinstance(msg.get("text"), str) and msg.get("text").strip():
+                    cleaned = _extract_clean_content(msg["text"])
+                    return [TextContent(type="text", text=cleaned)]
                 outs = []
                 for o in msg.get("outputs", []):
                     if (o or {}).get("type") == "text":
@@ -224,4 +247,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -1,0 +1,7 @@
+{
+  "op": "call_tool_ack",
+  "request_id": "d0b3ea86f83446a980b51485d575e44e",
+  "accepted": true,
+  "timeout": 90,
+  "name": "chat"
+}

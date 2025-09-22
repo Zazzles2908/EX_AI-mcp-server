@@ -35,7 +35,8 @@ AUTH_TOKEN = os.getenv("EXAI_WS_TOKEN", "")
 MAX_MSG_BYTES = int(os.getenv("EXAI_WS_MAX_BYTES", str(32 * 1024 * 1024)))
 PING_INTERVAL = int(os.getenv("EXAI_WS_PING_INTERVAL", "45"))  # wider interval to reduce false timeouts
 PING_TIMEOUT = int(os.getenv("EXAI_WS_PING_TIMEOUT", "30"))    # allow slower systems to respond to pings
-CALL_TIMEOUT = int(os.getenv("EXAI_WS_CALL_TIMEOUT", "300"))  # default 5m to align with expert analysis
+# WS-level hard ceiling for a single tool invocation; keep small to avoid client-perceived hangs
+CALL_TIMEOUT = int(os.getenv("EXAI_WS_CALL_TIMEOUT", "90"))  # default 90s; can be raised via env if needed
 HELLO_TIMEOUT = float(os.getenv("EXAI_WS_HELLO_TIMEOUT", "15"))  # allow slower clients to hello
 # Heartbeat cadence while tools run; keep <10s to satisfy clients with 10s idle cutoff
 PROGRESS_INTERVAL = float(os.getenv("EXAI_WS_PROGRESS_INTERVAL_SECS", "8.0"))
@@ -510,14 +511,41 @@ async def _handle_message(ws: WebSocketServerProtocol, session_id: str, msg: Dic
                 except Exception:
                     pass
 
+                # Ensure at least one text block for UI surfacing even if tool returned no outputs
+                if not outputs_norm:
+                    outputs_norm = [{"type": "text", "text": ""}]
+
+                # Detect serialized ToolOutput error-style payloads and surface via error channel
+                error_obj = None
+                try:
+                    for o in outputs_norm:
+                        if isinstance(o, dict) and isinstance(o.get("text"), str):
+                            t = o.get("text", "").strip()
+                            if t.startswith("{") and t.endswith("}"):
+                                import json as _json
+                                parsed = _json.loads(t)
+                                status = str(parsed.get("status", "")).lower()
+                                if status in {"code_too_large", "error", "execution_error", "resend_prompt"}:
+                                    error_obj = {
+                                        "code": status.upper(),
+                                        "message": parsed.get("content") or parsed.get("error") or "Request rejected by preflight validation",
+                                        "metadata": parsed.get("metadata") or {}
+                                    }
+                                    break
+                except Exception:
+                    error_obj = None
+
                 result_payload = {
                     "op": "call_tool_res",
                     "request_id": req_id,
                     "outputs": outputs_norm,
                 }
+                if error_obj:
+                    result_payload["error"] = error_obj
+
                 # Optional compatibility: include a top-level 'text' field concatenating output texts
                 try:
-                    if os.getenv("EXAI_WS_COMPAT_TEXT", "false").strip().lower() == "true":
+                    if os.getenv("EXAI_WS_COMPAT_TEXT", "true").strip().lower() == "true":
                         texts = [o.get("text", "") for o in outputs_norm if isinstance(o, dict)]
                         result_payload["text"] = "\n\n".join([t for t in texts if t])
                 except Exception:

@@ -1,0 +1,14 @@
+{
+  "op": "call_tool",
+  "request_id": "240e3ca147f64593b325abd0d1f27f0c",
+  "name": "kimi_multi_file_chat",
+  "arguments": {
+    "files": [
+      "C:\\Project\\EX-AI-MCP-Server\\.validation_tmp\\sample_a.txt",
+      "C:\\Project\\EX-AI-MCP-Server\\.validation_tmp\\sample_b.txt"
+    ],
+    "prompt": "List three non-obvious risks in this repo and why they matter.",
+    "model": "kimi-k2-0711-preview",
+    "temperature": 0.4
+  }
+}

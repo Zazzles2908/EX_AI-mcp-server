@@ -1,3 +1,17 @@
+# Back-compat shim: forwards to canonical subfolder
+if __name__ == "__main__":
+    import pathlib, runpy, sys
+    target = pathlib.Path(__file__).parent / "validation" / "smoke_tools.py"
+    try:
+        runpy.run_path(str(target), run_name="__main__")
+    except SystemExit as e:
+        raise
+    except Exception as e:
+        print(f"Shim failed to run target {target}: {e}")
+        sys.exit(1)
+    sys.exit(0)
+
+
 import asyncio
 import os
 import sys
