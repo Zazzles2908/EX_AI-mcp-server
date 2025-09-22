@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import asyncio as _aio
 from typing import Any, Callable, Dict, List
 
 from mcp.types import TextContent
@@ -49,9 +51,14 @@ async def execute_file_chat_with_fallback(
         try:
             if tool_name not in tools:
                 continue
-            mlog.info(f"[FALLBACK] attempt={attempt_idx} tool={tool_name}")
+            attempt_timeout = float(os.getenv("FALLBACK_ATTEMPT_TIMEOUT_SECS", "60"))
+            mlog.info(f"[FALLBACK] attempt={attempt_idx} tool={tool_name} timeout={attempt_timeout}s")
             tool_obj = tools[tool_name]
-            result = await execute_with_monitor(lambda: tool_obj.execute(args))
+            try:
+                result = await _aio.wait_for(tool_obj.execute(args), timeout=attempt_timeout)
+            except _aio.TimeoutError:
+                mlog.error(f"[FALLBACK] timeout on {tool_name} after {attempt_timeout}s; advancing chain")
+                continue
             if _is_error_envelope(result):
                 mlog.warning(
                     f"[FALLBACK] envelope indicates error; advancing chain from {tool_name}"

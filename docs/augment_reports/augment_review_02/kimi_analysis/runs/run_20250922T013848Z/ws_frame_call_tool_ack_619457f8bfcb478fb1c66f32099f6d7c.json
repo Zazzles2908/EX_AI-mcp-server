@@ -1,0 +1,7 @@
+{
+  "op": "call_tool_ack",
+  "request_id": "619457f8bfcb478fb1c66f32099f6d7c",
+  "accepted": true,
+  "timeout": 240,
+  "name": "kimi_upload_and_extract"
+}

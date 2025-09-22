@@ -1,0 +1,7 @@
+{
+  "op": "call_tool_ack",
+  "request_id": "b76c54c0430642de9ca13d45709af73e",
+  "accepted": true,
+  "timeout": 240,
+  "name": "kimi_multi_file_chat"
+}
