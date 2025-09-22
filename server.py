@@ -28,6 +28,8 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any, Optional
 
+from src.server.fallback_orchestrator import execute_file_chat_with_fallback
+
 # EARLY DIAGNOSTIC (gate via STDERR_BREADCRUMBS to avoid noisy stderr for strict clients)
 _DEF = lambda k, d: os.getenv(k, d).strip().lower()
 def _env_true(key: str, default: str = "false") -> bool:
@@ -1099,70 +1101,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                 pass
             raise
 
-    # --- Minimal fallback orchestrator for file_chat flows (P0) ---
-    async def _execute_file_chat_with_fallback(primary_name: str, args: dict[str, Any]) -> list[TextContent]:
-        """
-        Attempt file-based chat on the primary provider, then gracefully degrade.
-        Chain: primary (e.g., kimi_multi_file_chat) -> glm_multi_file_chat -> chat (final fallback).
-        """
-        import json as _json
-        _mcp_log = logging.getLogger("mcp_activity")
 
-        def _is_error_envelope(res: list[TextContent]) -> bool:
-            try:
-                if not res:
-                    return False
-                txt = getattr(res[0], "text", None)
-                if not isinstance(txt, str):
-                    return False
-                obj = _json.loads(txt)
-                if isinstance(obj, dict) and str(obj.get("status")).startswith("execution_error"):
-                    return True
-            except Exception:
-                return False
-            return False
-
-        chain = [primary_name, "glm_multi_file_chat"]
-        for attempt_idx, tool_name in enumerate(chain, start=1):
-            try:
-                if tool_name not in TOOLS:
-                    continue
-                _mcp_log.info(f"[FALLBACK] attempt={attempt_idx} tool={tool_name}")
-                tool_obj = TOOLS[tool_name]
-                result = await _execute_with_monitor(lambda: tool_obj.execute(args))
-                # If tool returned a structured error envelope, try next
-                if _is_error_envelope(result):
-                    _mcp_log.warning(f"[FALLBACK] envelope indicates error; advancing chain from {tool_name}")
-                    continue
-                return result
-            except Exception as e:
-                try:
-                    _mcp_log.error(f"[FALLBACK] exception on {tool_name}: {e}")
-                except Exception:
-                    pass
-                # proceed to next candidate
-                continue
-
-        # Final fallback: plain chat summary to avoid user-visible failure
-        try:
-            if "chat" in TOOLS:
-                fb_prompt = args.get("prompt") or "Please proceed with a concise answer based on your own knowledge."
-                chat_args = {"prompt": f"Files-based path unavailable; answer succinctly: {fb_prompt}", "model": args.get("model")}
-                _mcp_log.info("[FALLBACK] invoking final 'chat' fallback")
-                return await _execute_with_monitor(lambda: TOOLS["chat"].execute(chat_args))
-        except Exception:
-            pass
-        # As a last resort, return a minimal error envelope
-        from mcp.types import TextContent as _TextContent
-        return [_TextContent(type="text", text=_json.dumps({
-            "status": "execution_error",
-            "error_class": "exhausted_fallback_chain",
-            "provider": "unknown",
-            "tool": primary_name,
-            "detail": "All fallbacks failed; no content available"
-        }, ensure_ascii=False))]
-
-            raise
         finally:
             _stop = True
             try:
@@ -1428,7 +1367,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             # Execute tool directly without model context
             try:
                 if name == "kimi_multi_file_chat":
-                    return await _execute_file_chat_with_fallback(name, arguments)
+                    return await execute_file_chat_with_fallback(TOOLS, _execute_with_monitor, name, arguments)
                 else:
                     return await _execute_with_monitor(lambda: tool.execute(arguments))
             except Exception as e:
@@ -1696,7 +1635,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         __overall_start = _time.time()
         __workflow_steps_completed = 1
         if name == "kimi_multi_file_chat":
-            result = await _execute_file_chat_with_fallback(name, arguments)
+            result = await execute_file_chat_with_fallback(TOOLS, _execute_with_monitor, name, arguments)
         else:
             result = await _execute_with_monitor(lambda: tool.execute(arguments))
         # Normalize result shape to list[TextContent]
