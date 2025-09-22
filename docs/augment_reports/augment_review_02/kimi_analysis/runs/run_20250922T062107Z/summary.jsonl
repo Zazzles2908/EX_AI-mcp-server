@@ -1,0 +1,21 @@
+{"type": "status", "event": "connect_attempt", "uris": ["ws://127.0.0.1:8765", "ws://127.0.0.1:8765/ws"]}
+{"type": "status", "event": "connected", "uri": "ws://127.0.0.1:8765"}
+{"type": "status", "event": "hello_ack", "ok": true}
+{"type": "status", "event": "tools_list", "count": 22}
+{"type": "status", "event": "start_tool", "tool": "kimi_upload_and_extract", "rid": "54c45f04c2704e6b9f958a852f0b3621"}
+{"type": "status", "event": "progress", "rid": "54c45f04c2704e6b9f958a852f0b3621", "tool": "kimi_upload_and_extract", "stage": null}
+{"type": "status", "event": "ack", "rid": "54c45f04c2704e6b9f958a852f0b3621", "tool": "kimi_upload_and_extract"}
+{"tool": "kimi_upload_and_extract", "rid": "54c45f04c2704e6b9f958a852f0b3621", "ok": true, "duration_sec": 0.44, "preview": "[{'type': 'text', 'text': '[{\"role\": \"system\", \"content\": \"{\\\\\"content\\\\\":\\\\\"A: backend MCP runner sample file\\\\\\\\r\\\\\\\\n\\\\\",\\\\\"file_type\\\\\":\\\\\"text/plain\\\\\",\\\\\"filename\\\\\":\\\\\"sample_a.txt\\\\\",\\\\\"title\\"}
+{"type": "status", "event": "tool_complete", "tool": "kimi_upload_and_extract", "rid": "54c45f04c2704e6b9f958a852f0b3621", "duration_sec": 0.44}
+{"type": "status", "event": "start_tool", "tool": "kimi_multi_file_chat", "rid": "fb701d7e83dd4657a00b59e5a75b37d2"}
+{"type": "status", "event": "progress", "rid": "fb701d7e83dd4657a00b59e5a75b37d2", "tool": "kimi_multi_file_chat", "stage": null}
+{"type": "status", "event": "ack", "rid": "fb701d7e83dd4657a00b59e5a75b37d2", "tool": "kimi_multi_file_chat"}
+{"type": "status", "event": "progress", "rid": "fb701d7e83dd4657a00b59e5a75b37d2", "tool": "kimi_multi_file_chat", "stage": null}
+{"type": "status", "event": "timeout", "request_id": "fb701d7e83dd4657a00b59e5a75b37d2", "display": "kimi_multi_file_chat", "elapsed_sec": 425.01, "timeout_sec": 420}
+{"tool": "kimi_multi_file_chat", "rid": "fb701d7e83dd4657a00b59e5a75b37d2", "ok": false, "duration_sec": 425.02, "preview": "[]"}
+{"type": "status", "event": "tool_error", "tool": "kimi_multi_file_chat", "rid": "fb701d7e83dd4657a00b59e5a75b37d2", "duration_sec": 425.02, "error": "timeout after 420s"}
+{"type": "status", "event": "start_tool", "tool": "chat", "rid": "9f2bccf39a3f414696b7cc30cddf674e"}
+{"type": "status", "event": "timeout", "request_id": "9f2bccf39a3f414696b7cc30cddf674e", "display": "chat", "elapsed_sec": 240.01, "timeout_sec": 240}
+{"tool": "chat", "rid": "9f2bccf39a3f414696b7cc30cddf674e", "ok": false, "duration_sec": 240.01, "preview": "[]"}
+{"type": "status", "event": "tool_error", "tool": "chat", "rid": "9f2bccf39a3f414696b7cc30cddf674e", "duration_sec": 240.01, "error": "timeout after 240s"}
+{"type": "status", "event": "start_tool", "tool": "analyze", "rid": "45c1a1c31d18447db9192c97647d2501"}

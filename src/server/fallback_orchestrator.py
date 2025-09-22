@@ -33,17 +33,28 @@ async def execute_file_chat_with_fallback(
     mlog = logging.getLogger("mcp_activity")
 
     def _is_error_envelope(res: List[TextContent]) -> bool:
+        """Heuristically detect provider failure envelopes embedded in text content."""
         try:
             if not res:
-                return False
+                return True  # treat empty as failure to allow fallback
             txt = getattr(res[0], "text", None)
-            if not isinstance(txt, str):
-                return False
-            obj = json.loads(txt)
-            if isinstance(obj, dict) and str(obj.get("status")).startswith("execution_error"):
+            if not isinstance(txt, str) or not txt.strip():
                 return True
+            try:
+                obj = json.loads(txt)
+            except Exception:
+                # Non-JSON text that contains common failure markers
+                low = txt.lower()
+                return any(k in low for k in ("execution_error", "cancelled", "timeout", "error"))
+            if isinstance(obj, dict):
+                status = str(obj.get("status", "")).lower()
+                if status.startswith("execution_error") or status in {"cancelled", "error", "failed"}:
+                    return True
+                # Common envelope shapes: {error: {...}}
+                if obj.get("error"):
+                    return True
         except Exception:
-            return False
+            return True
         return False
 
     chain = [primary_name, "glm_multi_file_chat"]
@@ -55,7 +66,11 @@ async def execute_file_chat_with_fallback(
             mlog.info(f"[FALLBACK] attempt={attempt_idx} tool={tool_name} timeout={attempt_timeout}s")
             tool_obj = tools[tool_name]
             try:
-                result = await _aio.wait_for(tool_obj.execute(args), timeout=attempt_timeout)
+                # Execute via server monitor to inherit logging/telemetry and uniform cancellation
+                result = await _aio.wait_for(
+                    execute_with_monitor(lambda: tool_obj.execute(args)),
+                    timeout=attempt_timeout,
+                )
             except _aio.TimeoutError:
                 mlog.error(f"[FALLBACK] timeout on {tool_name} after {attempt_timeout}s; advancing chain")
                 continue

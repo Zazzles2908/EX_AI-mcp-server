@@ -1,0 +1,11 @@
+{
+  "op": "call_tool_res",
+  "request_id": "54c45f04c2704e6b9f958a852f0b3621",
+  "outputs": [
+    {
+      "type": "text",
+      "text": "[{\"role\": \"system\", \"content\": \"{\\\"content\\\":\\\"A: backend MCP runner sample file\\\\r\\\\n\\\",\\\"file_type\\\":\\\"text/plain\\\",\\\"filename\\\":\\\"sample_a.txt\\\",\\\"title\\\":\\\"\\\",\\\"type\\\":\\\"file\\\"}\", \"_file_id\": \"d387nc2misdua6iukrf0\"}]"
+    }
+  ],
+  "text": "[{\"role\": \"system\", \"content\": \"{\\\"content\\\":\\\"A: backend MCP runner sample file\\\\r\\\\n\\\",\\\"file_type\\\":\\\"text/plain\\\",\\\"filename\\\":\\\"sample_a.txt\\\",\\\"title\\\":\\\"\\\",\\\"type\\\":\\\"file\\\"}\", \"_file_id\": \"d387nc2misdua6iukrf0\"}]"
+}

@@ -1,0 +1,10 @@
+{
+  "op": "call_tool",
+  "request_id": "9f2bccf39a3f414696b7cc30cddf674e",
+  "name": "chat",
+  "arguments": {
+    "prompt": "Find a recent AI infra news item and give 2 bullets with a URL.",
+    "model": "glm-4.5",
+    "use_websearch": true
+  }
+}
