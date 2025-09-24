@@ -2184,7 +2184,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                         tail_render = f"{__summary_text}\n\n{tail}\nreq_id={req_id}"
                     tail_line = _Txt(type="text", text=tail_render)
                     # Also emit a single-line activity summary for log watchers
-                    from utils.response_envelope import mcp_call_summary as __mcp_summary_builder
+                    from src.utils.response_envelope import mcp_call_summary as __mcp_summary_builder
                     __mcp_summary_line = __mcp_summary_builder(
                         tool=name,
                         status=__status_label,
