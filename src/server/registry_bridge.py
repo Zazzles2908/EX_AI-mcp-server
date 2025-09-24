@@ -16,3 +16,14 @@ class RegistryBridge:
 
 registry_bridge = RegistryBridge()
 
+# Tools registry accessor (single source of truth for server.py)
+def get_tools_dict() -> dict:
+    """Build tools via ToolRegistry and return the dict of name->tool.
+    Keeps server.py thin and avoids scattered imports.
+    """
+    from tools.registry import ToolRegistry  # local import to avoid hard deps at import time
+    reg = ToolRegistry()
+    reg.build_tools()
+    return reg.list_tools()
+
+

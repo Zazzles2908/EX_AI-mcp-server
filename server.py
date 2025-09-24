@@ -522,20 +522,19 @@ if (AUGGIE_ACTIVE or detect_auggie_cli()) and AUGGIE_WRAPPERS_AVAILABLE:
 
 # Build tools with lean gating (LEAN_MODE/LEAN_TOOLS/DISABLED_TOOLS)
 try:
-    from tools.registry import ToolRegistry
-    _tool_registry = ToolRegistry()
-    _tool_registry.build_tools()
-    TOOLS = _tool_registry.list_tools()
+    from src.server.registry_bridge import get_tools_dict
+    TOOLS = get_tools_dict()
     logger.info(f"Lean tool registry active - tools: {sorted(TOOLS.keys())}")
     try:
         # Native provider stubs (not wired)
-        if os.getenv("ENABLE_ZHIPU_NATIVE", "false").strip().lower() in {"1","true","yes","on"}:
+        from src.config.features import env_true
+        if env_true("ENABLE_ZHIPU_NATIVE"):
             try:
                 from src.providers.zhipu_native import ZhipuNativeProvider  # type: ignore
                 logger.info("Zhipu native provider stub enabled (not wired)")
             except Exception as _zp_err:
                 logger.debug(f"Zhipu stub load skipped: {_zp_err}")
-        if os.getenv("ENABLE_MOONSHOT_NATIVE", "false").strip().lower() in {"1","true","yes","on"}:
+        if env_true("ENABLE_MOONSHOT_NATIVE"):
             try:
                 from src.providers.moonshot_native import MoonshotNativeProvider  # type: ignore
                 logger.info("Moonshot native provider stub enabled (not wired)")
