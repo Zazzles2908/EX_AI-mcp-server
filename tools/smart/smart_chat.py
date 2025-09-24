@@ -24,6 +24,23 @@ class SmartChatTool:
     def get_description(self) -> str:
         return "Smart chat (advisory-only): logs manager plan; no routing changes."
 
+    def requires_model(self) -> bool:
+        """SmartChat is advisory-only and does not call a model."""
+        return False
+
+    def get_descriptor(self) -> Dict[str, Any]:  # minimal descriptor for clients
+        return {
+            "name": self.get_name(),
+            "description": self.get_description(),
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "Optional prompt; advisory scaffold only."}
+                },
+                "required": [],
+            },
+        }
+
     async def execute(self, arguments: Dict[str, Any]) -> List[TextContent]:  # pragma: no cover
         # Advisory-only message to indicate scaffold behavior
         msg = {
