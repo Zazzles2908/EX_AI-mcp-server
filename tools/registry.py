@@ -151,6 +151,18 @@ class ToolRegistry:
         if os.getenv("DIAGNOSTICS", "false").strip().lower() != "true":
             active.discard("self-check")
 
+        # Tools consolidation gating (core set / allowlist)
+        tools_core_only = os.getenv("TOOLS_CORE_ONLY", "false").strip().lower() == "true"
+        allowlist = {t.strip().lower() for t in os.getenv("TOOLS_ALLOWLIST", "").split(",") if t.strip()}
+        CORE_SET = {
+            "chat", "analyze", "codereview", "debug", "precommit", "refactor",
+            "secaudit", "testgen", "thinkdeep", "tracer", "activity", "health",
+        }
+        if tools_core_only:
+            active = (active & CORE_SET) | allowlist
+        elif allowlist:
+            active = active & allowlist
+
         # Web tools removed; no gating needed
         for name in sorted(active):
             self._load_tool(name)
