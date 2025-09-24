@@ -370,3 +370,32 @@
 {"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "6f66fa57151221e76b9db146b0294899587af566743d5ab876249e6f8625ad1b", "t": 1758534213.3217692}
 {"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "8b8831221f3e24191f73621b1deb2a6c9313318336cc659b6ceeca32ee48d861", "t": 1758542736.0817404}
 {"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758542737.706932}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "116e2e2fd87914f2e39254c15195b9e8ba28d5a61a219231d3fd64fe24cd6c6d", "t": 1758623927.0950038}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758623928.2338245}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "116e2e2fd87914f2e39254c15195b9e8ba28d5a61a219231d3fd64fe24cd6c6d", "t": 1758624198.8132334}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "730a5fce36810b1ff9a6ea3a983d8cd89966e9cd37ab13beae3b33e44d5a1a98", "t": 1758632764.9609795}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758632766.0381372}
+{"event": "file_cache", "action": "miss", "provider": "GLM", "sha": "730a5fce36810b1ff9a6ea3a983d8cd89966e9cd37ab13beae3b33e44d5a1a98", "t": 1758632766.433842}
+{"event": "file_count_delta", "provider": "GLM", "delta": 1, "t": 1758632767.8480926}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "fd45307674dcb985739565f0f8f7c0c9e35d249e227d7f8036acdce91f05750c", "t": 1758633247.4854121}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758633248.6253257}
+{"event": "file_cache", "action": "miss", "provider": "GLM", "sha": "fd45307674dcb985739565f0f8f7c0c9e35d249e227d7f8036acdce91f05750c", "t": 1758633248.9953792}
+{"event": "file_count_delta", "provider": "GLM", "delta": 1, "t": 1758633249.3437192}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "2a0ebe5459b8f8ad5112710b27cb8a1900e8d681ea4164f011d40cc4dbb381d6", "t": 1758661950.9466965}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758661951.7296984}
+{"event": "file_cache", "action": "miss", "provider": "GLM", "sha": "2a0ebe5459b8f8ad5112710b27cb8a1900e8d681ea4164f011d40cc4dbb381d6", "t": 1758661952.2295344}
+{"event": "file_count_delta", "provider": "GLM", "delta": 1, "t": 1758661952.54869}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "10864a5eca13f9f464316ccec1b52a3a30f2ebee0df2336472d54ceac23a7c4d", "t": 1758662736.7301276}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758662737.769798}
+{"event": "file_cache", "action": "miss", "provider": "GLM", "sha": "10864a5eca13f9f464316ccec1b52a3a30f2ebee0df2336472d54ceac23a7c4d", "t": 1758662738.3958554}
+{"event": "file_count_delta", "provider": "GLM", "delta": 1, "t": 1758662738.75751}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "a9c1e26191d448bcbceb0fd085bbe7d58cdb52632424fe326a2904d1ae511bab", "t": 1758663040.8320394}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758663041.571135}
+{"event": "file_cache", "action": "miss", "provider": "GLM", "sha": "a9c1e26191d448bcbceb0fd085bbe7d58cdb52632424fe326a2904d1ae511bab", "t": 1758663041.9539638}
+{"event": "file_count_delta", "provider": "GLM", "delta": 1, "t": 1758663042.3388033}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "70ad1f4168fa69861d71d59997055c9383c158886cac7d6ccc428287cb0bce1c", "t": 1758679571.8430917}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758679573.0461926}
+{"event": "file_cache", "action": "miss", "provider": "kimi", "sha": "61471c50093ab8009c48f6ad6ce2b4c17b2190bbf08a4e8c8c953f3802ac2072", "t": 1758679573.409711}
+{"event": "file_count_delta", "provider": "kimi", "delta": 1, "t": 1758679574.8479342}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "70ad1f4168fa69861d71d59997055c9383c158886cac7d6ccc428287cb0bce1c", "t": 1758679871.8222172}
+{"event": "file_cache", "action": "hit", "provider": "kimi", "sha": "61471c50093ab8009c48f6ad6ce2b4c17b2190bbf08a4e8c8c953f3802ac2072", "t": 1758679872.236135}

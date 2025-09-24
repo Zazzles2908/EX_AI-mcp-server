@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SKIP_TOOLS = set()
 if not ALLOW_PROVIDER:
     SKIP_TOOLS |= {"chat","kimi_chat_with_tools","kimi_upload_and_extract","consensus"}
-async def call_tool(ws, name: str, args: dict, timeout: float = 30.0) -> tuple[bool, str]:
+async def call_tool(ws, name: str, args: dict, timeout: float = 60.0) -> tuple[bool, str]:
     req_id = uuid.uuid4().hex
     await ws.send(json.dumps({"op":"call_tool","request_id":req_id,"name":name,"arguments":args}))
     t0=time.time()
@@ -39,6 +39,12 @@ def default_args_for(tool: str) -> dict:
     if tool=="thinkdeep": return {"step":"Kickoff","step_number":1,"total_steps":1,"next_step_required":False,"findings":"ws exercise","confidence":"low"}
     if tool=="tracer": return {"step":"Kickoff","step_number":1,"total_steps":1,"next_step_required":False,"findings":"ws exercise","trace_mode":"ask","target_description":"Trace server startup entrypoints"}
     if tool=="version": return {}
+    # Provider tools (minimal, safe defaults)
+    if tool=="kimi_chat_with_tools":
+        return {"model":"kimi-k2-0905-preview","messages":[{"role":"user","content":"Return two random animals and the current HH:MM time only."}],"use_websearch":False}
+    if tool=="kimi_multi_file_chat":
+        sample_file = str(REPO_ROOT/"docs"/"augment_reports"/"augment_review_02"/"kimi_timeouts_WIP.md")
+        return {"model":"kimi-k2-0905-preview","prompt":"Summarize the file in one sentence.","files":[sample_file]}
     return {}
 async def main() -> int:
     uri=f"ws://{HOST}:{PORT}"; sid=f"ws-exerciser-{uuid.uuid4().hex[:6]}-{random.randint(100,999)}"

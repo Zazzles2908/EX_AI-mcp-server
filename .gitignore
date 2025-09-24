@@ -190,3 +190,7 @@ logs/
 
 # Ignore JSONL logs
 .logs/*.jsonl
+
+
+# Local generated env snapshot (do not commit)
+.env.new

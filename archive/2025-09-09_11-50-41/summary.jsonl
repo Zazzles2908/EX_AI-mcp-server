@@ -1,8 +1,0 @@
-{"tool": "analyze", "status": "success", "provider": null, "model": null, "duration_sec": 0.01}
-{"tool": "challenge", "status": "success", "provider": null, "model": null, "duration_sec": 0.01}
-{"tool": "chat", "status": "success", "provider": null, "model": null, "duration_sec": 0.01}
-{"tool": "consensus", "status": "success", "provider": null, "model": null, "duration_sec": 0.03}
-{"tool": "listmodels", "status": "success", "provider": null, "model": null, "duration_sec": 0.01}
-{"tool": "orchestrate_auto", "status": "success", "provider": null, "model": null, "duration_sec": 0.02}
-{"tool": "thinkdeep", "status": "success", "provider": null, "model": null, "duration_sec": 0.01}
-{"tool": "version", "status": "success", "provider": null, "model": null, "duration_sec": 0.07}

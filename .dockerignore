@@ -9,6 +9,7 @@ __pycache__/
 *.so
 .Python
 env/
+env.new/
 venv/
 .venv/
 .venv/
@@ -48,6 +49,7 @@ pytest.ini
 
 # Development
 .env
+.env.new
 .env.local
 examples/
 scripts/bump_version.py

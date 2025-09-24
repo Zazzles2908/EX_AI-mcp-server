@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import asyncio
+import logging
+
 from typing import Any, Dict, List
 from pathlib import Path
 
@@ -63,6 +65,25 @@ class KimiUploadAndExtractTool(BaseTool):
     def format_response(self, response: str, request: ToolRequest, model_info: dict | None = None) -> str:
         return response
 
+    def _resolve_path(self, p: str) -> str:
+        """Resolve file path against project root when relative.
+        Order: absolute -> EX_PROJECT_ROOT -> PROJECT_ROOT -> CWD.
+        """
+        try:
+            from pathlib import Path as _P
+            _p = _P(str(p))
+            if _p.is_absolute() and _p.exists():
+                return str(_p)
+            roots = [os.getenv("EX_PROJECT_ROOT"), os.getenv("PROJECT_ROOT"), os.getcwd()]
+            for r in [x for x in roots if x]:
+                cand = _P(r) / str(p)
+                if cand.exists():
+                    return str(cand)
+            # Fall back to original string; provider may still handle
+            return str(_p if _p.is_absolute() else _P(os.getcwd()) / str(p))
+        except Exception:
+            return str(p)
+
     def _run(self, **kwargs) -> List[Dict[str, Any]]:
         files = kwargs.get("files") or []
         purpose = (kwargs.get("purpose") or "file-extract").strip()
@@ -81,8 +102,30 @@ class KimiUploadAndExtractTool(BaseTool):
         from utils.tool_events import ToolCallEvent, ToolEventSink
         sink = ToolEventSink()
         for idx, fp in enumerate(files, start=1):
-            evt = ToolCallEvent(provider=prov.get_provider_type().value, tool_name="file_upload_extract", args={"path": str(fp), "purpose": purpose})
+            resolved = self._resolve_path(fp)
+            evt = ToolCallEvent(provider=prov.get_provider_type().value, tool_name="file_upload_extract", args={"path": str(resolved), "purpose": purpose})
             try:
+                # Optional local size skip to avoid provider 4xx on large files
+                try:
+                    max_mb_env = os.getenv("KIMI_FILES_MAX_SIZE_MB", "").strip()
+                    if max_mb_env:
+                        max_bytes = float(max_mb_env) * 1024 * 1024
+                        sz = Path(str(resolved)).stat().st_size
+                        if sz > max_bytes:
+                            try:
+                                logging.getLogger("mcp_activity").warning(
+                                    f"[KIMI_UPLOAD] skip {resolved} size={sz}B exceeds {max_mb_env}MB"
+                                )
+                            except Exception:
+                                pass
+                            evt.end(ok=False, error=f"skipped: exceeds {max_mb_env}MB")
+                            try:
+                                sink.record(evt)
+                            except Exception:
+                                pass
+                            continue
+                except Exception:
+                    pass
                 # FileCache: reuse existing file_id if enabled and present
                 from pathlib import Path as _P
                 from utils.file_cache import FileCache
@@ -91,7 +134,7 @@ class KimiUploadAndExtractTool(BaseTool):
                 prov_name = prov.get_provider_type().value
                 if cache_enabled:
                     try:
-                        pth = _P(str(fp))
+                        pth = _P(str(resolved))
                         sha = FileCache.sha256_file(pth)
                         fc = FileCache()
                         cached = fc.get(sha, prov_name)
@@ -113,11 +156,11 @@ class KimiUploadAndExtractTool(BaseTool):
                         file_id = None
 
                 if not file_id:
-                    file_id = prov.upload_file(fp, purpose=purpose)
+                    file_id = prov.upload_file(resolved, purpose=purpose)
                     # on new upload, cache it
                     try:
                         if cache_enabled:
-                            pth = _P(str(fp))
+                            pth = _P(str(resolved))
                             sha = FileCache.sha256_file(pth)
                             fc = FileCache()
                             fc.set(sha, prov.get_provider_type().value, file_id)
@@ -177,6 +220,34 @@ class KimiUploadAndExtractTool(BaseTool):
                 except Exception:
                     pass
         return messages
+    def _upload_files_only(self, *, files: List[str], purpose: str = "file-extract") -> List[str]:
+        """Upload files to Moonshot and return their file_ids without extracting content.
+        Primary purpose is to enable reference-based chat without content injection.
+        """
+        if not files:
+            return []
+        # Resolve provider
+        prov = ModelProviderRegistry.get_provider_for_model(os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview"))
+        if not isinstance(prov, KimiModelProvider):
+            api_key = os.getenv("KIMI_API_KEY", "")
+            if not api_key:
+                raise RuntimeError("KIMI_API_KEY is not configured")
+            prov = KimiModelProvider(api_key=api_key)
+        file_ids: List[str] = []
+        for fp in files:
+            try:
+                resolved = self._resolve_path(fp)
+                fid = prov.upload_file(resolved, purpose=purpose)
+                if fid:
+                    file_ids.append(str(fid))
+            except Exception as e:
+                # Continue best-effort; log via mcp_activity
+                try:
+                    logging.getLogger("mcp_activity").warning(f"[KIMI_UPLOAD_ONLY] failed for {resolved}: {e}")
+                except Exception:
+                    pass
+        return file_ids
+
 
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
         # Offload blocking provider/file I/O to a background thread to avoid blocking event loop
@@ -246,6 +317,19 @@ class KimiMultiFileChatTool(BaseTool):
         }
 
     def run(self, **kwargs) -> Dict[str, Any]:
+        """
+        Multi-file chat flow (robust):
+        1) Primary: upload files only (no large content injection) and prompt the model
+           to use the attached files by reference.
+        2) Fallback: if response content is empty or cancelled, inject extracted content
+           but cap total injected bytes to 50KB to avoid provider cancellation.
+        3) Timeout: default 80s (configurable via KIMI_MF_CHAT_TIMEOUT_SECS).
+        Returns a structured dict with model, content, and diagnostics.
+        """
+        import concurrent.futures as _fut
+        import os
+        from pathlib import Path as _P
+
         files = kwargs.get("files") or []
         prompt = kwargs.get("prompt") or ""
         model = kwargs.get("model") or os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview")
@@ -254,43 +338,133 @@ class KimiMultiFileChatTool(BaseTool):
         if not files or not prompt:
             raise ValueError("files and prompt are required")
 
-        # Upload & extract (call provider tool's internal synchronous _run)
-        upload_tool = KimiUploadAndExtractTool()
-        sys_msgs = upload_tool._run(files=files)
-
-        # Prepare messages
-        messages = [*sys_msgs, {"role": "user", "content": prompt}]
-
+        # Provider
         prov = ModelProviderRegistry.get_provider_for_model(os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0711-preview"))
         if not isinstance(prov, KimiModelProvider):
             api_key = os.getenv("KIMI_API_KEY", "")
             if not api_key:
                 raise RuntimeError("KIMI_API_KEY is not configured")
             prov = KimiModelProvider(api_key=api_key)
+        # Context cache/idempotency hints
+        try:
+            import uuid
+            session_id = os.getenv("EX_SESSION_ID") or f"mcp-{os.getpid()}"
+            call_key = str(uuid.uuid4())
+        except Exception:
+            session_id, call_key = None, None
 
-        # Use OpenAI-compatible client to create completion with a hard timeout
-        import concurrent.futures as _fut
-        def _call():
-            # Use Kimi provider wrapper to inject idempotency + context-cache headers
-            return prov.chat_completions_create(model=model, messages=messages, temperature=temperature)
-        timeout_s = float(os.getenv("KIMI_MF_CHAT_TIMEOUT_SECS", "180"))
+
+        # Primary: upload files only (no content injection)
+        upload_tool = KimiUploadAndExtractTool()
+        try:
+            file_ids = upload_tool._upload_files_only(files=files, purpose="file-extract")
+        except Exception:
+            # If upload helper not available or fails, continue with empty attachments list
+            file_ids = []
+
+        # Lightweight system hint listing filenames (not contents)
+        try:
+            _names = [(_P(str(f)).name) for f in files]
+        except Exception:
+            _names = []
+        file_note = ("Attached files: " + ", ".join(_names)) if _names else ""
+        system_hint = {
+            "role": "system",
+            "content": ("Use the attached files by reference to answer accurately. " + file_note).strip(),
+        }
+        messages = [system_hint, {"role": "user", "content": prompt}]
+
+        def _call_primary():
+            return prov.chat_completions_create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                _session_id=session_id,
+                _call_key=call_key,
+                _tool_name=self.get_name(),
+            )
+
+        timeout_s = float(os.getenv("KIMI_MF_CHAT_TIMEOUT_SECS", "80"))
+        _retry_backoff = float(os.getenv("KIMI_MF_RETRY_BACKOFF_SECS", "0.5"))
         try:
             with _fut.ThreadPoolExecutor(max_workers=1) as _pool:
-                _future = _pool.submit(_call)
+                _future = _pool.submit(_call_primary)
                 resp = _future.result(timeout=timeout_s)
         except _fut.TimeoutError:
             raise TimeoutError(f"Kimi multi-file chat timed out after {int(timeout_s)}s")
+        except Exception as _e1:
+            # One retry with short backoff before switching to content-injection fallback
+            try:
+                import time as _time
+                _time.sleep(_retry_backoff)
+                with _fut.ThreadPoolExecutor(max_workers=1) as _pool:
+                    _future2 = _pool.submit(_call_primary)
+                    resp = _future2.result(timeout=timeout_s)
+            except Exception:
+                # Re-raise original to let structured envelope path handle it
+                raise _e1
+
         content = (resp or {}).get("content", "")
-        return {"model": model, "content": content}
+        if content:
+            return {"model": model, "content": content, "file_ids": file_ids or []}
+
+        # Fallback: inject extracted content, but cap to 50KB
+        sys_msgs = upload_tool._run(files=files)
+        MAX_BYTES = int(os.getenv("KIMI_MF_INJECT_MAX_BYTES", "51200"))  # 50KB default
+        used = 0
+        trimmed_msgs: list[dict[str, str]] = []
+        for m in sys_msgs:
+            try:
+                text = str(m.get("content", ""))
+            except Exception:
+                text = ""
+            if not text:
+                continue
+            b = text.encode("utf-8", errors="ignore")
+            if used >= MAX_BYTES:
+                break
+            remain = MAX_BYTES - used
+            if len(b) > remain:
+                text = b[:remain].decode("utf-8", errors="ignore")
+            used += len(text.encode("utf-8", errors="ignore"))
+            trimmed_msgs.append({"role": "system", "content": text})
+
+        messages_fb = [*trimmed_msgs, {"role": "user", "content": prompt}]
+
+        def _call_fallback():
+            return prov.chat_completions_create(
+                model=model,
+                messages=messages_fb,
+                temperature=temperature,
+                _session_id=session_id,
+                _call_key=call_key,
+                _tool_name=self.get_name(),
+            )
+
+        try:
+            with _fut.ThreadPoolExecutor(max_workers=1) as _pool:
+                _future = _pool.submit(_call_fallback)
+                resp2 = _future.result(timeout=timeout_s)
+        except _fut.TimeoutError:
+            raise TimeoutError(f"Kimi multi-file chat (fallback) timed out after {int(timeout_s)}s")
+
+        content2 = (resp2 or {}).get("content", "")
+        return {
+            "model": model,
+            "content": content2,
+            "used_fallback": True,
+            "file_ids": file_ids or [],
+            "injected_bytes": used,
+        }
 
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
         import asyncio as _aio
         try:
             # Hard-cap total execution time to ensure progress and enable fallback
             try:
-                timeout_s = float(os.getenv("KIMI_MF_CHAT_TIMEOUT_SECS", "60"))
+                timeout_s = float(os.getenv("KIMI_MF_CHAT_TIMEOUT_SECS", "80"))
             except Exception:
-                timeout_s = 60.0
+                timeout_s = 80.0
             result = await _aio.wait_for(_aio.to_thread(self.run, **arguments), timeout=timeout_s)
             return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
         except _aio.TimeoutError:

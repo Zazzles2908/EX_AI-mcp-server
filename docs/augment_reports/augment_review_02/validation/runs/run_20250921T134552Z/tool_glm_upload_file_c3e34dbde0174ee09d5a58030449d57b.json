@@ -1,8 +1,0 @@
-{
-  "op": "call_tool_res",
-  "request_id": "c3e34dbde0174ee09d5a58030449d57b",
-  "error": {
-    "code": "EXEC_ERROR",
-    "message": "Subclasses must implement execute method"
-  }
-}

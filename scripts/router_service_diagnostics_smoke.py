@@ -1,3 +1,6 @@
+# DEPRECATED SHIM — use scripts/diagnostics/router_service_diagnostics_smoke.py
+# This top-level wrapper forwards to the canonical entry point and will be removed in a future release.
+
 # Back-compat shim: forwards to canonical subfolder
 if __name__ == "__main__":
     import pathlib, runpy, sys

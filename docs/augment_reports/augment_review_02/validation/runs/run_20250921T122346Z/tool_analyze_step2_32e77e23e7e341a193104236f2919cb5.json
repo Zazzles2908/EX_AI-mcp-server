@@ -1,8 +1,0 @@
-{
-  "op": "call_tool_res",
-  "request_id": "32e77e23e7e341a193104236f2919cb5",
-  "error": {
-    "code": "EXEC_ERROR",
-    "message": "Conversation thread 'b8b64bfe76b74761b0322c2518ccb397' was not found or has expired. This may happen if the conversation was created more than 3 hours ago or if the server was restarted. Please restart the conversation by providing your full question/prompt without the continuation_id parameter. This will create a new conversation thread that can continue with follow-up exchanges."
-  }
-}

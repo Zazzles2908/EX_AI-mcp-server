@@ -1,2 +1,0 @@
-{"tool": "__meta__", "label": "ws_error", "ok": false, "error": "timed out during handshake"}
-{"tool": "cli_extras", "label": "embeddings_cleanup", "ok": true, "preview": "{\"embeddings\": null, \"cleanup\": {\"rc\": 0, \"stdout_len\": 28, \"stderr_len\": 0}}"}

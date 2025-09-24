@@ -188,6 +188,15 @@ class KimiModelProvider(OpenAICompatibleProvider):
 
     def __init__(self, api_key: str, base_url: Optional[str] = None, **kwargs):
         self.base_url = base_url or self.DEFAULT_BASE_URL
+        # Optional diagnostic mode: override base_url for MoonPalace
+        try:
+            if os.getenv("KIMI_DIAG_MOONPALACE", "false").strip().lower() == "true":
+                mp = os.getenv("KIMI_MOONPALACE_BASE_URL", "").strip()
+                if mp:
+                    self.base_url = mp
+                    logger.info("Kimi diag mode active: base_url=%s", self.base_url)
+        except Exception:
+            pass
         # Provider-specific timeout overrides via env
         try:
             rt = os.getenv("KIMI_READ_TIMEOUT_SECS", "").strip()
@@ -335,18 +344,34 @@ class KimiModelProvider(OpenAICompatibleProvider):
             The provider-assigned file id string
         """
         from pathlib import Path
-        # Resolve relative paths from project root if not absolute
+        # Robust path resolution: EX_PROJECT_ROOT -> PROJECT_ROOT -> CWD
         p = Path(file_path)
-        if not p.is_absolute():
-            try:
-                project_root = Path.cwd()
-                p = (project_root / p).resolve()
-            except Exception:
-                p = p
+        if not p.is_absolute() or not p.exists():
+            roots = []
+            ex_root = os.getenv("EX_PROJECT_ROOT", "").strip()
+            if ex_root:
+                roots.append(Path(ex_root))
+            proj_root = os.getenv("PROJECT_ROOT", "").strip()
+            if proj_root:
+                roots.append(Path(proj_root))
+            roots.append(Path.cwd())
+            resolved = None
+            for r in roots:
+                try:
+                    cand = (r / p).resolve()
+                    if cand.exists():
+                        resolved = cand
+                        break
+                except Exception:
+                    continue
+            if resolved is not None:
+                p = resolved
         if not p.exists():
-            # Friendlier message: show CWD and suggest possible path
+            # Friendlier message: show CWD and env roots for diagnostics
             cwd = str(Path.cwd())
-            raise FileNotFoundError(f"File not found: {file_path} (cwd={cwd})")
+            raise FileNotFoundError(
+                f"File not found: {file_path} (cwd={cwd}, EX_PROJECT_ROOT={os.getenv('EX_PROJECT_ROOT','')}, PROJECT_ROOT={os.getenv('PROJECT_ROOT','')})"
+            )
         # Optional client-side size guardrail (helps before provider returns 4xx)
         try:
             max_mb_env = os.getenv("KIMI_FILES_MAX_SIZE_MB", "")
@@ -387,6 +412,12 @@ class KimiModelProvider(OpenAICompatibleProvider):
 
         # Build extra headers
         extra_headers = {"Msh-Trace-Mode": "on"}
+        # Optional diagnostic header for MoonPalace
+        try:
+            if os.getenv("KIMI_DIAG_MOONPALACE", "false").strip().lower() == "true":
+                extra_headers["Msh-Debug-Mode"] = "moonpalace"
+        except Exception:
+            pass
         if call_key:
             extra_headers["Idempotency-Key"] = str(call_key)
         # Attach cached context token if available

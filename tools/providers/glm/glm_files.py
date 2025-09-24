@@ -136,8 +136,13 @@ class GLMUploadFileTool(BaseTool):
     async def execute(self, arguments: dict[str, Any]) -> list["TextContent"]:
         import asyncio as _aio
         from mcp.types import TextContent
-        result = await _aio.to_thread(self.run, **arguments)
-        return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
+        from tools.shared.error_envelope import make_error_envelope
+        try:
+            result = await _aio.to_thread(self.run, **arguments)
+            return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False))]
+        except Exception as e:
+            env = make_error_envelope("GLM", self.name, e)
+            return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
 
 class GLMMultiFileChatTool(BaseTool):
     name = "glm_multi_file_chat"

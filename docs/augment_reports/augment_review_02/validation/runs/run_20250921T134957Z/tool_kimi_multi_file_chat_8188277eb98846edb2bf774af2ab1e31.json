@@ -1,8 +1,0 @@
-{
-  "op": "call_tool_res",
-  "request_id": "8188277eb98846edb2bf774af2ab1e31",
-  "error": {
-    "code": "EXEC_ERROR",
-    "message": "'KimiUploadAndExtractTool' object has no attribute 'run'"
-  }
-}

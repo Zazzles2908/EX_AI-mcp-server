@@ -3,9 +3,10 @@ import json
 import os
 from typing import Any, Dict, List
 from mcp.types import TextContent
-from .shared.base_tool import BaseTool
+from tools.shared.base_tool import BaseTool
 from tools.shared.base_models import ToolRequest
 from src.providers.kimi import KimiModelProvider
+from tools.shared.error_envelope import make_error_envelope
 from src.providers.registry import ModelProviderRegistry
 from src.providers.base import ProviderType
 
@@ -15,10 +16,11 @@ class KimiChatWithToolsTool(BaseTool):
 
     def get_description(self) -> str:
         return (
-            "Call Kimi chat completion with optional tools/tool_choice. Can auto-inject an internet tool based on env.\n"
+            "Call Kimi chat completion with optional tool calls (tool_choice supported). "
+            "If enabled, web search tools may be invoked automatically.\n"
             "Examples:\n"
             "- {\"messages\":[\"Summarize README.md\"], \"model\":\"auto\"}\n"
-            "- {\"messages\":[\"research X\"], \"use_websearch\":true, \"tool_choice\":\"auto\"}"
+            "- {\"messages\":[\"Research topic X\"], \"use_websearch\":true, \"tool_choice\":\"auto\"}"
         )
 
     def get_input_schema(self) -> Dict[str, Any]:
@@ -233,16 +235,20 @@ class KimiChatWithToolsTool(BaseTool):
                         raise e
                     return ("".join(content_parts), raw_items)
 
-                content_text, raw_stream = await _aio.to_thread(_stream_call)
-                normalized = {
-                    "provider": "KIMI",
-                    "model": model_used,
-                    "content": content_text,
-                    "tool_calls": None,
-                    "usage": None,
-                    "raw": {"stream": True, "items": [str(it) for it in raw_stream[:10]]},
-                }
-                return [TextContent(type="text", text=json.dumps(normalized, ensure_ascii=False))]
+                try:
+                    content_text, raw_stream = await _aio.to_thread(_stream_call)
+                    normalized = {
+                        "provider": "KIMI",
+                        "model": model_used,
+                        "content": content_text,
+                        "tool_calls": None,
+                        "usage": None,
+                        "raw": {"stream": True, "items": [str(it) for it in raw_stream[:10]]},
+                    }
+                    return [TextContent(type="text", text=json.dumps(normalized, ensure_ascii=False))]
+                except Exception as e:
+                    env = make_error_envelope("KIMI", self.get_name(), e)
+                    return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
         else:
             # Non-streaming with minimal tool-call loop for function web_search
             import copy
@@ -335,8 +341,8 @@ class KimiChatWithToolsTool(BaseTool):
                 try:
                     result = await _aio.wait_for(_aio.to_thread(_call), timeout=timeout_secs)
                 except _aio.TimeoutError:
-                    err = {"status": "execution_error", "error": f"Kimi chat timed out after {int(timeout_secs)}s"}
-                    return [TextContent(type="text", text=json.dumps(err, ensure_ascii=False))]
+                    env = make_error_envelope("KIMI", self.get_name(), "timeout", detail=f"{int(timeout_secs)}s")
+                    return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
 
                 # If no tool calls, return immediately
                 tcs = _extract_tool_calls(result.get("raw")) if isinstance(result, dict) else None

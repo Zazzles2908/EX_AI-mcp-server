@@ -1,3 +1,6 @@
+# DEPRECATED SHIM — use scripts/ws/ws_chat_once.py
+# This top-level wrapper forwards to the canonical entry point and will be removed in a future release.
+
 # Back-compat shim: prefer canonical script in subfolder; this shim forwards and exits.
 if __name__ == "__main__":
     import pathlib, runpy, sys

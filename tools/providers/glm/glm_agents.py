@@ -6,7 +6,8 @@ from typing import Any, Dict
 
 import requests
 
-from .shared.base_tool import BaseTool
+from tools.shared.base_tool import BaseTool
+from tools.shared.error_envelope import make_error_envelope
 from tools.shared.base_models import ToolRequest
 from mcp.types import TextContent
 
@@ -71,9 +72,13 @@ class GLMAgentChatTool(BaseTool):
         }
         if "custom_variables" in arguments:
             payload["custom_variables"] = arguments["custom_variables"]
-        r = requests.post(url, headers=_glm_headers(), data=json.dumps(payload), timeout=120)
-        r.raise_for_status()
-        return [TextContent(type="text", text=r.text)]
+        try:
+            r = requests.post(url, headers=_glm_headers(), data=json.dumps(payload), timeout=120)
+            r.raise_for_status()
+            return [TextContent(type="text", text=r.text)]
+        except Exception as e:
+            env = make_error_envelope("GLM", self.get_name(), e)
+            return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
 
 
 class GLMAgentGetResultTool(BaseTool):
@@ -116,9 +121,13 @@ class GLMAgentGetResultTool(BaseTool):
     async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
         url = f"{_glm_agent_base()}/agents/result"
         payload = {"async_id": arguments["async_id"], "agent_id": arguments["agent_id"]}
-        r = requests.post(url, headers=_glm_headers(), data=json.dumps(payload), timeout=120)
-        r.raise_for_status()
-        return [TextContent(type="text", text=r.text)]
+        try:
+            r = requests.post(url, headers=_glm_headers(), data=json.dumps(payload), timeout=120)
+            r.raise_for_status()
+            return [TextContent(type="text", text=r.text)]
+        except Exception as e:
+            env = make_error_envelope("GLM", self.get_name(), e)
+            return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
 
 
 class GLMAgentConversationTool(BaseTool):
@@ -167,7 +176,11 @@ class GLMAgentConversationTool(BaseTool):
             "page": int(arguments.get("page", 1)),
             "page_size": int(arguments.get("page_size", 20)),
         }
-        r = requests.post(url, headers=_glm_headers(), data=json.dumps(payload), timeout=120)
-        r.raise_for_status()
-        return [TextContent(type="text", text=r.text)]
+        try:
+            r = requests.post(url, headers=_glm_headers(), data=json.dumps(payload), timeout=120)
+            r.raise_for_status()
+            return [TextContent(type="text", text=r.text)]
+        except Exception as e:
+            env = make_error_envelope("GLM", self.get_name(), e)
+            return [TextContent(type="text", text=json.dumps(env, ensure_ascii=False))]
 

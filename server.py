@@ -301,6 +301,51 @@ logger = logging.getLogger(__name__)
 # This name is used by MCP clients to identify and connect to this specific server
 server: Server = Server(os.getenv("MCP_SERVER_ID", "ex-server"))
 
+# Optional dispatcher wiring (P2 scaffolding) — env-gated and non‑operational by default
+USE_DISPATCHER = os.getenv("EX_USE_DISPATCHER", "false").strip().lower() in {"1","true","yes","on"}
+try:
+    from src.server.dispatcher import Dispatcher  # type: ignore
+    _dispatcher = Dispatcher() if USE_DISPATCHER else None
+    if _dispatcher:
+        logger.info("Dispatcher initialized (scaffold) — no routing changes yet")
+except Exception as _disp_err:
+    _dispatcher = None
+    logger.debug(f"Dispatcher not active: {_disp_err}")
+
+# Optional AI Manager wiring (P4 scaffolding) — env-gated and non‑operational by default
+AI_MANAGER_ENABLED = os.getenv("EX_AI_MANAGER_ENABLED", "false").strip().lower() in {"1","true","yes","on"}
+AI_MANAGER_ROUTE = os.getenv("EX_AI_MANAGER_ROUTE", "false").strip().lower() in {"1","true","yes","on"}
+
+try:
+    from src.managers.ai_manager import AiManager  # type: ignore
+    _ai_manager = AiManager(enabled=AI_MANAGER_ENABLED)
+    if _ai_manager and _ai_manager.enabled:
+        logger.info("AI Manager initialized (scaffold) — no routing changes yet")
+except Exception as _aim_err:  # pragma: no cover
+    _ai_manager = None
+    logger.debug(f"AI Manager not active: {_aim_err}")
+
+# P2 scaffolding: Telemetry and RegistryBridge touchpoints (no behavior change)
+try:
+    from src.server.telemetry import telemetry as _telemetry  # type: ignore
+except Exception as _t_err:  # pragma: no cover
+    _telemetry = None
+    logger.debug(f"Telemetry not active: {_t_err}")
+try:
+    from src.server.registry_bridge import registry_bridge as _registry_bridge  # type: ignore
+except Exception as _r_err:  # pragma: no cover
+    _registry_bridge = None
+    logger.debug(f"RegistryBridge not active: {_r_err}")
+
+if _telemetry:
+    logger.info("Telemetry touchpoint initialized (no-op)")
+if _registry_bridge:
+    try:
+        _probe_models = _registry_bridge.get_available_models()
+        logger.debug(f"RegistryBridge probe: models={len(_probe_models)}")
+    except Exception as _probe_err:  # pragma: no cover
+        logger.debug(f"RegistryBridge probe failed: {_probe_err}")
+
 
 # Constants for tool filtering
 ESSENTIAL_TOOLS = {"version", "listmodels"}
@@ -459,6 +504,30 @@ try:
     _tool_registry.build_tools()
     TOOLS = _tool_registry.list_tools()
     logger.info(f"Lean tool registry active - tools: {sorted(TOOLS.keys())}")
+    try:
+        if os.getenv("ENABLE_SMART_CHAT", "false").strip().lower() in {"1","true","yes","on"}:
+            try:
+                from tools.smart.smart_chat import SmartChatTool  # type: ignore
+                TOOLS["smart_chat"] = SmartChatTool()
+                logger.info("SmartChat tool registered (advisory-only; gated)")
+            except Exception as _sc_err:
+                logger.debug(f"SmartChat registration skipped: {_sc_err}")
+        # Native provider stubs (not wired)
+        if os.getenv("ENABLE_ZHIPU_NATIVE", "false").strip().lower() in {"1","true","yes","on"}:
+            try:
+                from src.providers.zhipu_native import ZhipuNativeProvider  # type: ignore
+                logger.info("Zhipu native provider stub enabled (not wired)")
+            except Exception as _zp_err:
+                logger.debug(f"Zhipu stub load skipped: {_zp_err}")
+        if os.getenv("ENABLE_MOONSHOT_NATIVE", "false").strip().lower() in {"1","true","yes","on"}:
+            try:
+                from src.providers.moonshot_native import MoonshotNativeProvider  # type: ignore
+                logger.info("Moonshot native provider stub enabled (not wired)")
+            except Exception as _ms_err:
+                logger.debug(f"Moonshot stub load skipped: {_ms_err}")
+    except Exception as _opts_err:
+        logger.debug(f"Optional tool/provider registration skipped: {_opts_err}")
+
 
 except Exception as e:
     logger.warning(f"Lean tool registry unavailable, falling back to static tool set: {e}")
@@ -929,6 +998,129 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         pass
     import uuid as _uuid
     req_id = str(_uuid.uuid4())
+    # Telemetry DRY-RUN (no behavior change)
+    try:
+        if _telemetry:
+            _telemetry.record_event("tool_call_start", name=name, req_id=req_id)
+    except Exception:
+        pass
+
+    # AI Manager DRY-RUN advisory plan (no behavior change)
+    try:
+        if _ai_manager and _ai_manager.enabled:
+            _plan = _ai_manager.plan_or_route(name, arguments or {})
+            if _plan:
+                try:
+                    logging.getLogger("mcp_activity").info({
+                        "event": "ai_manager_plan",
+                        "tool": name,
+                        "req_id": req_id,
+                        "plan": _plan,
+                    })
+                except Exception:
+                    pass
+    except Exception as _aim_dry_err:
+        logger.debug(f"[AI-MANAGER-DRYRUN] skip: {_aim_dry_err}")
+
+    # AI Manager operational routing (env-gated)
+    try:
+        if _ai_manager and _ai_manager.enabled and 'AI_MANAGER_ROUTE' in globals() and AI_MANAGER_ROUTE:
+            if '_plan' in locals() and _plan:
+                _mapped = name
+                _prov = (_plan or {}).get("suggested_provider")
+                _has_files = bool((_plan or {}).get("has_files"))
+                _suggested_model = (_plan or {}).get("suggested_model")
+                # Map to tool (provider-aware)
+                if _prov == "kimi" and _has_files and isinstance(arguments, dict) and "files" in arguments and "kimi_multi_file_chat" in TOOLS:
+                    _mapped = "kimi_multi_file_chat"
+                elif _prov == "glm" and "chat" in TOOLS:
+                    _mapped = "chat"
+
+                # Inject model hint if not explicitly provided
+                if _suggested_model and isinstance(arguments, dict) and "model" not in arguments:
+                    arguments["model"] = _suggested_model
+
+                # Provider-specific guard & argument shim when remapping to 'chat'
+                if _mapped != name and _mapped in TOOLS:
+                    try:
+                        # If crossing from provider-specific tool to generic 'chat', translate arguments
+                        _from = (name or "").lower()
+                        _to = ( _mapped or "" ).lower()
+                        _prov_specific = {"kimi_chat_with_tools", "kimi_multi_file_chat", "glm_multi_file_chat", "glm_agent_chat"}
+
+                        def _extract_prompt_from_args(_args: dict[str, Any]) -> str:
+                            try:
+                                p = str((_args or {}).get("prompt") or "").strip()
+                                if p:
+                                    return p
+                                msgs = (_args or {}).get("messages") or []
+                                if isinstance(msgs, list) and msgs:
+                                    # pick last user/system content with text
+                                    for _m in reversed(msgs):
+                                        if isinstance(_m, dict) and str(_m.get("role", "")).lower() in {"user", "system"}:
+                                            c = _m.get("content")
+                                            if isinstance(c, str) and c.strip():
+                                                return c.strip()
+                            except Exception:
+                                pass
+                            return ""
+
+                        if _to == "chat" and _from in _prov_specific:
+                            _prompt = _extract_prompt_from_args(arguments if isinstance(arguments, dict) else {})
+                            if not _prompt:
+                                # Block route when we cannot safely translate arguments
+                                try:
+                                    logging.getLogger("mcp_activity").info({
+                                        "event": "ai_manager_route_blocked",
+                                        "from": name,
+                                        "to": _mapped,
+                                        "req_id": req_id,
+                                        "reason": "no_prompt_or_messages_to_translate"
+                                    })
+                                except Exception:
+                                    pass
+                            else:
+                                # Build translated arguments for ChatTool
+                                _chat_args = {"prompt": _prompt}
+                                try:
+                                    if isinstance(arguments, dict):
+                                        # Preserve model and files if present
+                                        if "model" in arguments:
+                                            _chat_args["model"] = arguments["model"]
+                                        if "files" in arguments:
+                                            _chat_args["files"] = arguments["files"]
+                                except Exception:
+                                    pass
+                                arguments = _chat_args  # safe shim for chat schema
+
+                        # Log and apply route
+                        logging.getLogger("mcp_activity").info({
+                            "event": "ai_manager_route",
+                            "from": name,
+                            "to": _mapped,
+                            "req_id": req_id,
+                            "note": "operational route (env-gated)"
+                        })
+                        name = _mapped
+                    except Exception:
+                        pass
+    except Exception as _aim_route_err:
+        logger.debug(f"[AI-MANAGER-ROUTE] skip: {_aim_route_err}")
+
+
+    # Dispatcher DRY-RUN (no behavior change)
+    try:
+        if _dispatcher:
+            _model_hint = (arguments or {}).get("model", "auto")
+            logger.debug(f"[DISPATCHER-DRYRUN] req_id={req_id} tool={name} model_hint={_model_hint}")
+            # Attempt non-operative route call; ignore any result
+            try:
+                _ = _dispatcher.route(name, arguments or {})
+            except Exception as _route_err:
+                logger.debug(f"[DISPATCHER-DRYRUN] route noop failed: {_route_err}")
+    except Exception as _dry_err:
+        logger.debug(f"[DISPATCHER-DRYRUN] skip: {_dry_err}")
+
     """
     Handle incoming tool execution requests from MCP clients.
 
@@ -1072,6 +1264,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                     break
 
         hb_task = _asyncio.create_task(_heartbeat())
+        _t0 = __import__('time').time()
         try:
             main_task = _asyncio.create_task(_coro_factory())
             result = await _asyncio.wait_for(main_task, timeout=_tool_timeout_s)
@@ -1086,7 +1279,17 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         except _asyncio.CancelledError:
             # Propagate cancellation (e.g., client disconnect) but record structured end
             try:
-                mcp_logger.info(f"TOOL_CANCELLED: {name} req_id={req_id}")
+                _dt = max(0.0, __import__('time').time() - (_t0 if '_t0' in locals() else __import__('time').time()))
+                _thr = float((__import__('os').getenv('EX_CLIENT_ABORT_THRESHOLD_SECS') or '10').strip())
+                _evt_payload = {
+                    "event": "client_abort_suspected" if _dt < _thr else "tool_cancelled",
+                    "tool": name,
+                    "req_id": req_id,
+                    "elapsed_sec": round(_dt, 3),
+                    "threshold_sec": _thr,
+                }
+                logging.getLogger("mcp_activity").info(_evt_payload)
+                mcp_logger.info(f"TOOL_CANCELLED: {name} req_id={req_id} elapsed={_dt:.2f}s thr={_thr:.1f}s")
             except Exception:
                 pass
             try:
@@ -1378,7 +1581,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
             logger.debug(f"Tool {name} doesn't require model resolution - skipping model validation")
             # Execute tool directly without model context
             try:
-                if name == "kimi_multi_file_chat":
+                if name in {"kimi_multi_file_chat", "kimi_chat_with_tools"}:
                     # All file_chat requests must pass through fallback orchestrator
                     try:
                         logging.getLogger("mcp_activity").info({
@@ -1394,7 +1597,15 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                         logging.getLogger("mcp_activity").info("[FALLBACK] orchestrator route engaged for multi-file chat")
                     except Exception:
                         pass
-                    return await _execute_with_monitor(lambda: tool.execute(arguments))
+                    try:
+                        if name == "kimi_multi_file_chat":
+                            from src.server.fallback_orchestrator import execute_file_chat_with_fallback as _fb
+                        else:
+                            from src.server.fallback_orchestrator import execute_chat_with_tools_with_fallback as _fb
+                    except Exception:
+                        # Orchestrator unavailable; execute primary tool directly
+                        return await _execute_with_monitor(lambda: tool.execute(arguments))
+                    return await _fb(TOOLS, _execute_with_monitor, name, arguments)
                 else:
                     return await _execute_with_monitor(lambda: tool.execute(arguments))
             except Exception as e:
@@ -1602,6 +1813,56 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         if model_option:
             logger.debug(f"Model option stored in context: '{model_option}'")
 
+
+        # Response content validator and diagnostics (insertion point around ~1600)
+        def _validate_response_content(result_obj: object, _tool_name: str, _req_id: str):
+            import json as _json
+            _alog = logging.getLogger("mcp_activity")
+            try:
+                # Shape introspection
+                if isinstance(result_obj, list):
+                    n = len(result_obj)
+                    _alog.info(f"RESPONSE_DEBUG: pre-normalize type=list len={n} tool={_tool_name} req_id={_req_id}")
+                    if n == 0:
+                        _alog.warning(f"RESPONSE_DEBUG: empty result list tool={_tool_name} req_id={_req_id}")
+                    # Preview first few items
+                    previews: list[str] = []
+                    for idx, item in enumerate(result_obj[:3]):
+                        try:
+                            txt = getattr(item, "text", None)
+                            if isinstance(txt, str):
+                                previews.append(f"#{idx} {txt[:200].replace('\n',' ') }")
+                                # If JSON envelope, check status/content
+                                try:
+                                    obj = _json.loads(txt)
+                                    if isinstance(obj, dict):
+                                        st = str(obj.get("status", "")).lower().strip()
+                                        if st in {"success", "ok", "completed"} and not obj.get("content"):
+                                            _alog.warning(f"RESPONSE_DEBUG: success with empty content idx={idx} tool={_tool_name} req_id={_req_id}")
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                    if previews:
+                        try:
+                            _alog.info(f"RESPONSE_DEBUG: previews: {' | '.join(previews)} tool={_tool_name} req_id={_req_id}")
+                        except Exception:
+                            pass
+                else:
+                    _alog.info(f"RESPONSE_DEBUG: pre-normalize type={type(result_obj).__name__} tool={_tool_name} req_id={_req_id}")
+                    try:
+                        txt = getattr(result_obj, "text", None)
+                        if isinstance(txt, str) and not txt.strip():
+                            _alog.warning(f"RESPONSE_DEBUG: single TextContent empty text tool={_tool_name} req_id={_req_id}")
+                    except Exception:
+                        pass
+            except Exception as _ve:
+                try:
+                    _alog.debug(f"RESPONSE_DEBUG: validator error: {_ve}")
+                except Exception:
+                    pass
+            return result_obj
+
         # EARLY FILE SIZE VALIDATION AT MCP BOUNDARY
         # Check file sizes before tool execution using resolved model
         if "files" in arguments and arguments["files"]:
@@ -1632,6 +1893,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                         prompt_text = (arguments.get("prompt") or arguments.get("_original_user_prompt") or "")
                         lowered = prompt_text.lower()
                         recent_date = re.search(r"\b20\d{2}-\d{2}-\d{2}\b", lowered)  # YYYY-MM-DD
+
                         triggers = [
                             "today", "now", "this week", "as of", "release notes", "changelog",
                         ]
@@ -1662,12 +1924,13 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
         # Execute tool with pre-resolved model context
         __overall_start = _time.time()
         __workflow_steps_completed = 1
-        if name == "kimi_multi_file_chat":
+        if name in {"kimi_multi_file_chat", "kimi_chat_with_tools"}:
             # All file_chat requests must pass through fallback orchestrator
             try:
                 logging.getLogger("mcp_activity").info({
                     "event": "route_diagnostics",
                     "tool": name,
+
                     "req_id": req_id,
                     "path": "non_model_dispatch",
                     "note": "manager dispatcher engaged; invoking safety-net orchestrator"
@@ -1678,11 +1941,39 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                 logging.getLogger("mcp_activity").info("[FALLBACK] orchestrator route engaged for multi-file chat")
             except Exception:
                 pass
-            result = await _execute_with_monitor(lambda: tool.execute(arguments))
+            try:
+                if name == "kimi_multi_file_chat":
+                    from src.server.fallback_orchestrator import execute_file_chat_with_fallback as _fb
+                else:
+                    from src.server.fallback_orchestrator import execute_chat_with_tools_with_fallback as _fb
+                result = await _fb(TOOLS, _execute_with_monitor, name, arguments)
+            except Exception:
+                result = await _execute_with_monitor(lambda: tool.execute(arguments))
         else:
             result = await _execute_with_monitor(lambda: tool.execute(arguments))
         # Normalize result shape to list[TextContent]
         from mcp.types import TextContent as _TextContent
+        # Enhanced logging and validation prior to normalization
+        try:
+            _alog = logging.getLogger("mcp_activity")
+            _alog.info(f"RESPONSE_DEBUG: raw_result_type={type(result).__name__} is_list={isinstance(result, list)} tool={name} req_id={req_id}")
+            if isinstance(result, list):
+                _alog.info(f"RESPONSE_DEBUG: raw_result_len={len(result)} tool={name} req_id={req_id}")
+                prevs = []
+                for _i, _it in enumerate(result[:3]):
+                    try:
+                        _t = getattr(_it, "text", None)
+                        if isinstance(_t, str):
+                            prevs.append(f"#{_i} {_t[:160].replace('\n',' ')}")
+                    except Exception:
+                        pass
+                if prevs:
+                    _alog.info(f"RESPONSE_DEBUG: raw_previews: {' | '.join(prevs)} tool={name} req_id={req_id}")
+        except Exception:
+            pass
+        # Validate content before normalization to catch empty/invalid shapes early
+        result = _validate_response_content(result, name, req_id)
+
         if isinstance(result, _TextContent):
             result = [result]
         elif not isinstance(result, list):
@@ -1691,6 +1982,12 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                 result = [_TextContent(type="text", text=str(result))]
             except Exception:
                 result = []
+        try:
+            _nlen = len(result) if isinstance(result, list) else 0
+            logging.getLogger("mcp_activity").info(f"RESPONSE_DEBUG: normalized_result_len={_nlen} tool={name} req_id={req_id}")
+        except Exception:
+            pass
+
 
         # Optional auto-continue for workflow tools (env-gated)
         try:
@@ -1706,6 +2003,7 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                     max_steps = min(max_steps, cap)
             except Exception:
                 pass
+
             steps = 0
             if auto_en and isinstance(result, list) and result:
                 while steps < max_steps:
@@ -1870,9 +2168,18 @@ async def handle_call_tool(name: str, arguments: dict[str, Any]) -> list[TextCon
                         tail_render = f"{__summary_text}\n\n{tail}\nreq_id={req_id}"
                     tail_line = _Txt(type="text", text=tail_render)
                     # Also emit a single-line activity summary for log watchers
-                    __mcp_summary_line = (
-                        f"MCP_CALL_SUMMARY: tool={name} status={__status_label} step={__step_no}/{__total_steps or '?'} "
-                        f"dur={__total_dur:.1f}s model={__model_used} tokens~={__tokens} cont_id={__cid or '-'} expert={__expert_status} req_id={req_id}"
+                    from utils.response_envelope import mcp_call_summary as __mcp_summary_builder
+                    __mcp_summary_line = __mcp_summary_builder(
+                        tool=name,
+                        status=__status_label,
+                        step_no=__step_no,
+                        total_steps=__total_steps,
+                        duration_sec=__total_dur,
+                        model=__model_used,
+                        tokens=__tokens,
+                        continuation_id=__cid,
+                        expert_enabled=__expert_status,
+                        req_id=req_id,
                     )
 
                     # Force-first option for renderers that only show the first block

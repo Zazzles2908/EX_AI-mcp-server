@@ -63,14 +63,10 @@ class ChatTool(SimpleTool):
 
     def get_description(self) -> str:
         return (
-            "GENERAL CHAT & COLLABORATIVE THINKING - Use the AI model as your thinking partner! "
-            "Perfect for: bouncing ideas during your own analysis, getting second opinions on your plans, "
-            "collaborative brainstorming, validating your checklists and approaches, exploring alternatives. "
-            "Also great for: explanations, comparisons, general development questions. "
-            "Use this when you want to ask questions, brainstorm ideas, get opinions, discuss topics, "
-            "share your thinking, or need explanations about concepts and approaches. "
-            "Note: If you're not currently using a top-tier model such as Opus 4 or above, these tools can "
-            "provide enhanced capabilities."
+            "GENERAL CHAT & COLLABORATIVE THINKING - Your thinking partner for questions, ideas, and explanations. "
+            "Use for brainstorming, second opinions, exploring alternatives, and quick how-to guidance. "
+            "Supports files and images for context. The system may route to specialized workflows (planner, analyze) "
+            "when depth or structure is helpful."
         )
 
     def get_system_prompt(self) -> str:
