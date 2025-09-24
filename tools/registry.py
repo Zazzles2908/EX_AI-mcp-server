@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import os
 from typing import Any, Dict
+import logging
+logger = logging.getLogger(__name__)
 
 # Map tool names to import paths (module, class)
 TOOL_MAP: Dict[str, tuple[str, str]] = {
@@ -163,6 +165,7 @@ class ToolRegistry:
             active = (active & CORE_SET) | allowlist
         elif allowlist:
             active = active & allowlist
+        logger.info(f"Registry gating: core_only={tools_core_only} allowlist={sorted(list(allowlist))} final_active={sorted(list(active))}")
 
         # Web tools removed; no gating needed
         for name in sorted(active):
