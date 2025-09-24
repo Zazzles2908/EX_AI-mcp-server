@@ -347,6 +347,29 @@ if _registry_bridge:
         logger.debug(f"RegistryBridge probe failed: {_probe_err}")
 
 
+# Optional System Cleanup modules (import-safe; no behavior change)
+try:
+    from src.server.response_handler import ResponseHandler as _ResponseHandler  # type: ignore
+    _response_handler = _ResponseHandler()
+    logger.info("ResponseHandler initialized (import-safe; no-op integration)")
+except Exception as _rh_err:  # pragma: no cover
+    _response_handler = None
+    logger.debug(f"ResponseHandler not active: {_rh_err}")
+
+try:
+    from src.server.model_resolver import ModelResolver as _ModelResolver  # type: ignore
+    _model_resolver = _ModelResolver()
+    logger.info("ModelResolver initialized (import-safe; no-op integration)")
+except Exception as _mr_err:  # pragma: no cover
+    _model_resolver = None
+    logger.debug(f"ModelResolver not active: {_mr_err}")
+
+try:
+    from src.server.mcp_protocol import ensure_messages as _ensure_messages  # type: ignore
+    logger.debug("MCP protocol utils loaded (ensure_messages available)")
+except Exception as _mp_err:  # pragma: no cover
+    logger.debug(f"MCP protocol utils not loaded: {_mp_err}")
+
 # Constants for tool filtering
 ESSENTIAL_TOOLS = {"version", "listmodels"}
 
