@@ -171,6 +171,30 @@ class ToolRegistry:
         for name in sorted(active):
             self._load_tool(name)
 
+        # Optional: Register SmartChat via registry only when explicitly allowlisted
+        try:
+            enable_smart = os.getenv("ENABLE_SMART_CHAT", "false").strip().lower() in {"1", "true", "yes", "on"}
+            tools_core_only = os.getenv("TOOLS_CORE_ONLY", "false").strip().lower() == "true"
+            allowlist = {t.strip().lower() for t in os.getenv("TOOLS_ALLOWLIST", "").split(",") if t.strip()}
+
+            def _is_allowed(name: str) -> bool:
+                if tools_core_only:
+                    return name in allowlist
+                if allowlist:
+                    return name in allowlist
+                return True
+
+            if enable_smart and _is_allowed("smart_chat"):
+                try:
+                    from tools.smart.smart_chat import SmartChatTool  # type: ignore
+                    self._tools["smart_chat"] = SmartChatTool()
+                    logger.info("SmartChat tool registered via registry (advisory-only; allowlist)")
+                except Exception as e:
+                    self._errors["smart_chat"] = str(e)
+        except Exception:
+            # Do not fail registry build on optional SmartChat
+            pass
+
     def get_tool(self, name: str) -> Any:
         if name in self._tools:
             return self._tools[name]

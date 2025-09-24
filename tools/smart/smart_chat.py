@@ -32,6 +32,7 @@ class SmartChatTool:
         return {
             "name": self.get_name(),
             "description": self.get_description(),
+            "annotations": {"advisory": True, "readOnlyHint": True, "alias_of": "chat"},
             "input_schema": {
                 "type": "object",
                 "properties": {

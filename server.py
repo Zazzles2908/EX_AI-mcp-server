@@ -528,13 +528,6 @@ try:
     TOOLS = _tool_registry.list_tools()
     logger.info(f"Lean tool registry active - tools: {sorted(TOOLS.keys())}")
     try:
-        if os.getenv("ENABLE_SMART_CHAT", "false").strip().lower() in {"1","true","yes","on"}:
-            try:
-                from tools.smart.smart_chat import SmartChatTool  # type: ignore
-                TOOLS["smart_chat"] = SmartChatTool()
-                logger.info("SmartChat tool registered (advisory-only; gated)")
-            except Exception as _sc_err:
-                logger.debug(f"SmartChat registration skipped: {_sc_err}")
         # Native provider stubs (not wired)
         if os.getenv("ENABLE_ZHIPU_NATIVE", "false").strip().lower() in {"1","true","yes","on"}:
             try:
