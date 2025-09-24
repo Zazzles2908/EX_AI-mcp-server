@@ -19,6 +19,29 @@ from tools.shared.base_models import ToolRequest
 
 from .simple.base import SimpleTool
 
+import os
+try:
+    from mcp.types import TextContent
+except Exception:  # minimal shim for editor/test discovery
+    class TextContent:  # type: ignore
+        def __init__(self, type: str, text: str):
+            self.type = type
+            self.text = text
+
+# Provider-native tools (optional; guard with try/except)
+try:
+    from tools.providers.kimi.kimi_upload import KimiMultiFileChatTool
+except Exception:  # noqa: E722
+    KimiMultiFileChatTool = None  # type: ignore
+try:
+    from tools.providers.kimi.kimi_tools_chat import KimiChatWithToolsTool
+except Exception:  # noqa: E722
+    KimiChatWithToolsTool = None  # type: ignore
+try:
+    from tools.providers.glm.glm_files import GLMMultiFileChatTool
+except Exception:  # noqa: E722
+    GLMMultiFileChatTool = None  # type: ignore
+
 # Field descriptions matching the original Chat tool exactly
 CHAT_FIELD_DESCRIPTIONS = {
     "prompt": (
@@ -224,6 +247,7 @@ class ChatTool(SimpleTool):
                     else:
                         p = v.normalize_and_check(img)
                         normalized_images.append(str(p))
+
                 request.images = normalized_images
         except Exception as e:
             # Surface a clear validation error; callers will see this as tool error
@@ -231,6 +255,82 @@ class ChatTool(SimpleTool):
 
         # Use SimpleTool's Chat-style prompt preparation
         return self.prepare_chat_style_prompt(request)
+
+
+    # --- Always-smart routing additions (minimal, ≤150 lines) ---
+    def _should_long_context(self, prompt: str, msgs_len: int) -> bool:
+        try:
+            return (len(prompt or "") > 800) or (int(msgs_len) > 5)
+        except Exception:
+            return False
+
+    def _build_min_messages(self, prompt: str) -> list[dict]:
+        try:
+            sys = self.get_system_prompt()
+        except Exception:
+            sys = None
+        msgs = []
+        if sys:
+            msgs.append({"role": "system", "content": sys})
+        msgs.append({"role": "user", "content": prompt or ""})
+        return msgs
+
+    def _init_provider_tools(self) -> None:
+        # Lazy-init provider-native tool instances; tolerate missing deps
+        if getattr(self, "_prov_init", False):
+            return
+        self._prov_init = True
+        try:
+            self._kimi_mf = KimiMultiFileChatTool() if KimiMultiFileChatTool else None
+        except Exception:
+            self._kimi_mf = None
+        try:
+            self._kimi_tools = KimiChatWithToolsTool() if KimiChatWithToolsTool else None
+        except Exception:
+            self._kimi_tools = None
+        try:
+            self._glm_mf = GLMMultiFileChatTool() if GLMMultiFileChatTool else None
+        except Exception:
+            self._glm_mf = None
+
+    async def execute(self, arguments: dict[str, Any]) -> list[TextContent]:
+        # Preserve original behavior, add minimal routing before default fast path
+        self._init_provider_tools()
+        prompt = str(arguments.get("prompt", ""))
+        files = arguments.get("files") or []
+        temp = float(arguments.get("temperature", self.get_default_temperature()))
+        use_web = bool(arguments.get("use_websearch", True))
+        msgs = self._build_min_messages(prompt)
+
+        # 1) File-centric flow → prefer Kimi multi-file chat (upload-by-reference primary)
+        if files and getattr(self, "_kimi_mf", None):
+            try:
+                return await self._kimi_mf.execute({
+                    "files": files,
+                    "prompt": prompt,
+                    "model": os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0905-preview"),
+                    "temperature": max(0.0, min(1.0, float(os.getenv("KIMI_DEFAULT_TEMP", temp if temp is not None else 0.3))))
+                })
+            except Exception:
+                # Fall through to default chat on failure
+                pass
+
+        # 2) Long-context or explicit tool_choice/web → Kimi chat-with-tools if available
+        if (self._should_long_context(prompt, len(msgs)) or arguments.get("tool_choice") or use_web) and getattr(self, "_kimi_tools", None):
+            try:
+                return await self._kimi_tools.execute({
+                    "messages": msgs,
+                    "model": os.getenv("KIMI_DEFAULT_MODEL", "kimi-k2-0905-preview"),
+                    "tool_choice": arguments.get("tool_choice", "auto"),
+                    "temperature": max(0.0, min(1.0, float(temp if temp is not None else 0.6))),
+                    "use_websearch": use_web,
+                })
+            except Exception:
+                # Fall through to default chat on failure
+                pass
+
+        # 3) Default fast path → base SimpleTool behavior (GLM-4.5-flash via category)
+        return await super().execute(arguments)
 
     def format_response(self, response: str, request: ChatRequest, model_info: Optional[dict] = None) -> str:
         """
