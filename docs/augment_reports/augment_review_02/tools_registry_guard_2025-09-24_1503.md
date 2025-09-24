@@ -18,3 +18,8 @@ One-liner: YES — Implemented env-gated registry filter; requires server restar
 - Use EXAI-WS activity to confirm list_tools()/descriptors reflect gated set
 - Record excerpts under docs/augment_reports/augment_review_02/
 
+
+## Update (2025-09-24)
+- Core set expanded to include diagnostics: version, listmodels
+- Reason: keep discovery/health visibility when TOOLS_CORE_ONLY=true without requiring allowlist
+- Gating remains OFF; final flip will be bundled with a single Augment restart at the end of Batch B

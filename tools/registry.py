@@ -157,6 +157,7 @@ class ToolRegistry:
         CORE_SET = {
             "chat", "analyze", "codereview", "debug", "precommit", "refactor",
             "secaudit", "testgen", "thinkdeep", "tracer", "activity", "health",
+            "version", "listmodels",
         }
         if tools_core_only:
             active = (active & CORE_SET) | allowlist
