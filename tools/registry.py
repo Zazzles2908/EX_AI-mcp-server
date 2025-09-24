@@ -161,11 +161,16 @@ class ToolRegistry:
             "secaudit", "testgen", "thinkdeep", "tracer", "activity", "health",
             "version", "listmodels",
         }
+        # Apply allowlist only for tools known in TOOL_MAP; optional extras (e.g., smart_chat)
+        # are handled separately below to avoid KeyErrors during _load_tool.
+        allowlist_filtered = {t for t in allowlist if t in TOOL_MAP}
         if tools_core_only:
-            active = (active & CORE_SET) | allowlist
-        elif allowlist:
-            active = active & allowlist
-        logger.info(f"Registry gating: core_only={tools_core_only} allowlist={sorted(list(allowlist))} final_active={sorted(list(active))}")
+            active = (active & CORE_SET) | allowlist_filtered
+        elif allowlist_filtered:
+            active = active & allowlist_filtered
+        logger.info(
+            f"Registry gating: core_only={tools_core_only} allowlist={sorted(list(allowlist))} final_active={sorted(list(active))}"
+        )
 
         # Web tools removed; no gating needed
         for name in sorted(active):
